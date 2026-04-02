@@ -6,6 +6,8 @@ import time
 import base64
 import re
 from sqlalchemy import text
+from PIL import Image
+import io
 
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E CSS
@@ -21,7 +23,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Ranking Dinâmico das Divisões (De cima para baixo)
+# Ranking Dinâmico das Divisões
 PEDRAS = [
     "Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrita 💠",
     "Painite 🩸", "Musgravite 🪨", "Opala Negra 🌌", "Esmeralda 🟩",
@@ -37,10 +39,37 @@ ESTILOS_AVATAR = {
 }
 
 # ==========================================
+# PROCESSAMENTO DE IMAGENS (UPLOAD)
+# ==========================================
+def processar_imagem(uploaded_file):
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        image = image.convert("RGBA")
+        
+        # Cortar a imagem para ficar quadrada (centralizada)
+        width, height = image.size
+        min_dim = min(width, height)
+        left = (width - min_dim) / 2
+        top = (height - min_dim) / 2
+        right = (width + min_dim) / 2
+        bottom = (height + min_dim) / 2
+        image = image.crop((left, top, right, bottom))
+        
+        # Redimensionar para ficar leve no banco de dados
+        image = image.resize((150, 150), Image.Resampling.LANCZOS)
+        
+        # Converter para Base64
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        return f"data:image/png;base64,{img_str}"
+    return None
+
+# ==========================================
 # MOTOR MATEMÁTICO DE DIVISÕES
 # ==========================================
 def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual):
-    inc = max(incremento, 1.0) # Previne divisão por zero
+    inc = max(incremento, 1.0)
     saltos_totais = int(round((teto_maximo - base_inicial) / inc))
     qtd_divisoes = saltos_totais + 1
 
@@ -52,10 +81,8 @@ def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual):
         nome = f"{num_divisao}ª Divisão - {PEDRAS[pedra_idx]}"
         divisoes.append({"nome": nome, "valor": valor, "num_divisao": num_divisao})
 
-    # Ordena da divisão mais baixa (início) para a Elite (Ouro)
     divisoes = sorted(divisoes, key=lambda x: x["valor"])
 
-    # Identifica onde o atleta está agora
     div_atual = divisoes[0]
     index_atual = 0
     for idx, div in enumerate(divisoes):
@@ -113,7 +140,6 @@ def init_db():
     with conn.session as s:
         s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT DEFAULT 'notionists', base_inicial REAL DEFAULT 50.0, incremento REAL DEFAULT 10.0)'''))
         
-        # Atualização segura do banco de dados (Adiciona as colunas novas se não existirem)
         res_teto = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status' AND column_name='teto_maximo'")).fetchone()
         if not res_teto: s.execute(text("ALTER TABLE status ADD COLUMN teto_maximo REAL DEFAULT 100.0"))
         
@@ -123,19 +149,6 @@ def init_db():
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT DEFAULT 'falta')'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, descricao TEXT, valor REAL)'''))
-        
-        res = s.execute(text('SELECT COUNT(*) FROM regras')).scalar()
-        if res == 0:
-            regras_padrao = [
-                {"d": "🚿 Não seca o banheiro", "v": 1.00},
-                {"d": "🥱 Acordar reclamando pra ir a escola", "v": 1.00},
-                {"d": "🚽 Deixar a toalha no chão ou na privada", "v": 1.00},
-                {"d": "🧼 Não ir tomar banho quando solicitado", "v": 2.00},
-                {"d": "👟 Deixa roupa no chão e chuteira", "v": 2.00},
-                {"d": "📚 Não fazer a lição de casa quando mandar", "v": 5.00},
-                {"d": "🤬 Desobedecer aos pais (Cartão Vermelho)", "v": 20.00}
-            ]
-            s.execute(text('INSERT INTO regras (descricao, valor) VALUES (:d, :v)'), regras_padrao)
         s.commit()
 
 init_db()
@@ -176,7 +189,7 @@ def get_status(jogador):
     if not df.empty:
         row = df.iloc[0].to_dict()
         teto = row.get('teto_maximo')
-        if pd.isna(teto) or teto is None: teto = row.get('base_inicial') + (row.get('incremento') * 3) # Correção p/ jogadores antigos
+        if pd.isna(teto) or teto is None: teto = row.get('base_inicial') + (row.get('incremento') * 3)
         tits = row.get('titulos')
         if pd.isna(tits) or tits is None: tits = 0
         return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
@@ -193,6 +206,20 @@ def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo):
     with conn.session as s:
         s.execute(text('INSERT INTO status (nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos) VALUES (:n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0)'), 
                   {"n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo})
+        s.commit()
+
+# --- NOVA FUNÇÃO: EDITAR JOGADOR (CASCATA) ---
+def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo):
+    with conn.session as s:
+        s.execute(text('''
+            UPDATE status 
+            SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm 
+            WHERE nome=:na
+        '''), {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "na": nome_antigo})
+
+        if nome_antigo != novo_nome:
+            s.execute(text('UPDATE historico SET nome=:nn WHERE nome=:na'), {"nn": novo_nome, "na": nome_antigo})
+            s.execute(text('UPDATE trofeus SET nome=:nn WHERE nome=:na'), {"nn": novo_nome, "na": nome_antigo})
         s.commit()
 
 def delete_jogador(nome):
@@ -248,22 +275,20 @@ def get_trofeus(jogador):
 
 # Cartinha Estilo EA FC
 def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
-    arquivo_foto = f"{nome_jogador.lower()}.jpg"
-    img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
-    if os.path.exists(arquivo_foto):
-        with open(arquivo_foto, "rb") as img_file:
-            img_b64 = base64.b64encode(img_file.read()).decode()
-            img_src = f"data:image/jpeg;base64,{img_b64}"
+    # Detecta se é foto base64 ou avatar DiceBear
+    if estilo_avatar.startswith("data:image"):
+        img_src = estilo_avatar
+    else:
+        img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
 
     # Calcula o Overall (OVR)
     ovr = 90
     if faltas == 0: ovr += 4
-    ovr += int(max(0, saldo - base) / 3) # Bônus aumentam o OVR
-    ovr -= int(faltas * 3) # Faltas derrubam o OVR
+    ovr += int(max(0, saldo - base) / 3) 
+    ovr -= int(faltas * 3) 
     ovr = min(99, max(40, ovr))
 
-    # Identidade visual baseada na divisão
-    bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)" # Azul padrão
+    bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)"
     if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
     elif "Prata" in div_nome: bg_gradient = "linear-gradient(135deg, #e3e3e3 0%, #b5b5b5 50%, #8a8a8a 100%)"
     elif "Bronze" in div_nome: bg_gradient = "linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #8b4513 100%)"
@@ -313,11 +338,9 @@ if jogador_selecionado:
     if dados_jogador:
         nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos = dados_jogador
         
-        # Puxa o motor inteligente de divisões
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual)
         nome_divisao_exibicao = div_atual["nome"]
 
-        # Cartinha do Jogador
         render_carta_ea_fc(jogador_selecionado, estilo_avatar, nome_divisao_exibicao, saldo_atual, base_atual, faltas_atual, titulos)
 
         if aguardando_resgate == 1:
@@ -333,13 +356,10 @@ if jogador_selecionado:
 
                 novo_index = index_atual
                 animacao_tipo = None
-                ganhou_titulo = False
 
                 if faltas_atual <= 5.0 and not teve_vermelho:
                     if index_atual == len(divisoes) - 1:
-                        # Estacionou na Elite (1ª Divisão) - Ganha Título
                         titulos += 1
-                        ganhou_titulo = True
                         animacao_tipo = 'titulo'
                     else:
                         novo_index = index_atual + 1
@@ -357,7 +377,6 @@ if jogador_selecionado:
                 nova_base = nova_divisao["valor"]
                 novo_nome_div = nova_divisao["nome"]
 
-                # Configura a animação
                 if animacao_tipo == 'titulo': st.session_state.animacao_titulo = True
                 elif animacao_tipo == 'vitoria': 
                     st.session_state.animacao_vitoria = True
@@ -405,7 +424,6 @@ if jogador_selecionado:
 
                 st.markdown("---")
                 
-                # Gráfico Sparkline de Desempenho
                 df_historico_asc = conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id ASC', params={"n": jogador_selecionado}, ttl=0)
                 timeline = [base_atual]
                 curr = base_atual
@@ -414,7 +432,7 @@ if jogador_selecionado:
                     else: curr -= row['desconto']
                     timeline.append(curr)
                 
-                if len(timeline) == 1: timeline.append(base_atual) # Cria a linha reta se não houver histórico
+                if len(timeline) == 1: timeline.append(base_atual) 
                 
                 st.markdown("**📈 Desempenho no Mês:**")
                 st.line_chart(timeline, height=150)
@@ -435,7 +453,6 @@ if jogador_selecionado:
                 st.subheader("🌟 Histórico de Temporadas")
                 df_trofeus = get_trofeus(jogador_selecionado)
                 if not df_trofeus.empty:
-                    # Forçando o nome das colunas antes de aplicar a formatação do dinheiro
                     df_trofeus.columns = ['Data', 'Divisão', 'Recompensa']
                     df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
                     st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
@@ -459,11 +476,16 @@ with col_btn_senha:
 if senha == "2811":
     if not jogador_selecionado:
         st.markdown("**➕ Cadastrar Primeiro Jogador**")
-        col_novo_nome, col_novo_avatar = st.columns([2, 2])
-        with col_novo_nome:
-            novo_nome = st.text_input("Nome:", placeholder="Ex: Davi", label_visibility="collapsed")
-        with col_novo_avatar:
-            nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), label_visibility="collapsed")
+        novo_nome = st.text_input("Nome:", placeholder="Ex: Davi")
+        
+        tipo_foto = st.radio("Imagem do Perfil:", ["Avatar Padrão", "Fazer Upload de Foto"], horizontal=True)
+        avatar_final = "notionists"
+        if tipo_foto == "Avatar Padrão":
+            nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()))
+            avatar_final = ESTILOS_AVATAR[nome_avatar]
+        else:
+            foto_upload = st.file_uploader("Envie a foto (PNG/JPG):", type=["png", "jpg", "jpeg"])
+            if foto_upload: avatar_final = processar_imagem(foto_upload)
             
         col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
         with col_base:
@@ -475,7 +497,7 @@ if senha == "2811":
             
         if st.button("Cadastrar e Iniciar Liga", type="primary", use_container_width=True):
             if novo_nome and teto_val > base_ini and inc_val > 0:
-                add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val, teto_val)
+                add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val)
                 st.success(f"O jogador {novo_nome} entrou em campo!")
                 time.sleep(1.5)
                 st.rerun()
@@ -606,46 +628,88 @@ if senha == "2811":
                 st.info("Nenhuma regra cadastrada.")
 
         with tab_elenco:
-            st.markdown("**➕ Adicionar Novo Jogador ao Elenco**")
-            col_novo_nome, col_novo_avatar = st.columns([2, 2])
-            with col_novo_nome:
-                novo_nome = st.text_input("Nome:", placeholder="Ex: Arthur", label_visibility="collapsed")
-            with col_novo_avatar:
-                nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), label_visibility="collapsed", key="avatar_new")
-                
-            col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
-            with col_base:
-                base_ini = st.number_input("Início (R$):", value=50.0, step=5.0, key="base_new")
-            with col_inc:
-                inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0, key="inc_new")
-            with col_teto:
-                teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0, key="teto_new")
-                
-            if st.button("Cadastrar Jogador", use_container_width=True):
-                if novo_nome and novo_nome not in jogadores_ativos and teto_val > base_ini and inc_val > 0:
-                    add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val, teto_val)
-                    st.success(f"{novo_nome} escalado para a liga!")
-                    time.sleep(1.5)
-                    st.rerun()
-                elif novo_nome in jogadores_ativos:
-                    st.error("Jogador já existe no elenco!")
-                else:
-                    st.error("O Teto deve ser maior que o Início.")
-                    
-            st.markdown("---")
+            sub_cad, sub_edit, sub_del = st.tabs(["➕ Cadastrar", "✏️ Editar Perfil", "❌ Excluir"])
             
-            st.markdown("**❌ Remover Jogador do Elenco**")
-            st.warning("CUIDADO: Esta ação apagará permanentemente o perfil, o histórico e a sala de troféus.")
-            col_excluir, col_btn_excluir = st.columns([3, 1])
-            with col_excluir:
-                jogador_excluir = st.selectbox("Selecione o jogador:", jogadores_ativos, label_visibility="collapsed")
-            with col_btn_excluir:
-                confirmar = st.checkbox("Confirmar exclusão", key="chk_excluir")
-                if st.button("Excluir Perfil", use_container_width=True, disabled=not confirmar):
-                    delete_jogador(jogador_excluir)
-                    st.success(f"O jogador {jogador_excluir} foi removido.")
-                    time.sleep(1.5)
-                    st.rerun()
+            with sub_cad:
+                st.markdown("**Escalar Novo Jogador**")
+                novo_nome = st.text_input("Nome:", placeholder="Ex: Arthur", key="cad_nome")
+                
+                tipo_foto = st.radio("Imagem do Perfil:", ["Avatar Padrão", "Fazer Upload de Foto"], horizontal=True, key="cad_tipo_foto")
+                avatar_final = "notionists"
+                if tipo_foto == "Avatar Padrão":
+                    nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), key="cad_avatar")
+                    avatar_final = ESTILOS_AVATAR[nome_avatar]
+                else:
+                    foto_upload = st.file_uploader("Envie a foto (PNG/JPG):", type=["png", "jpg", "jpeg"], key="cad_upload")
+                    if foto_upload: avatar_final = processar_imagem(foto_upload)
+                    
+                col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
+                with col_base:
+                    base_ini = st.number_input("Início (R$):", value=50.0, step=5.0, key="cad_base")
+                with col_inc:
+                    inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0, key="cad_inc")
+                with col_teto:
+                    teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0, key="cad_teto")
+                    
+                if st.button("Cadastrar Jogador", use_container_width=True, key="btn_cadastrar"):
+                    if novo_nome and novo_nome not in jogadores_ativos and teto_val > base_ini and inc_val > 0:
+                        add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val)
+                        st.success(f"{novo_nome} escalado para a liga!")
+                        time.sleep(1.5)
+                        st.rerun()
+                    elif novo_nome in jogadores_ativos:
+                        st.error("Jogador já existe no elenco!")
+                    else:
+                        st.error("O Teto deve ser maior que o Início.")
+
+            with sub_edit:
+                st.markdown("**Ajustar Contrato e Perfil**")
+                if jogadores_ativos:
+                    jogador_editar = st.selectbox("Selecione o jogador:", jogadores_ativos, key="edit_sel_jog")
+                    dados_edit = get_status(jogador_editar)
+                    if dados_edit:
+                        niv_e, base_e, saldo_e, faltas_e, ag_e, avatar_atual_e, base_ini_e, inc_e, teto_e, tits_e = dados_edit
+                        
+                        edit_nome = st.text_input("Nome:", value=jogador_editar, key="edit_nome")
+                        
+                        tipo_foto_edit = st.radio("Imagem do Perfil:", ["Manter Atual", "Novo Avatar Padrão", "Nova Foto (Upload)"], horizontal=True, key="edit_tipo_foto")
+                        avatar_final_edit = avatar_atual_e
+                        if tipo_foto_edit == "Novo Avatar Padrão":
+                            nome_avatar_edit = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), key="edit_avatar")
+                            avatar_final_edit = ESTILOS_AVATAR[nome_avatar_edit]
+                        elif tipo_foto_edit == "Nova Foto (Upload)":
+                            foto_upload_edit = st.file_uploader("Envie a nova foto:", type=["png", "jpg", "jpeg"], key="edit_upload")
+                            if foto_upload_edit: avatar_final_edit = processar_imagem(foto_upload_edit)
+                        
+                        col_b, col_i, col_t = st.columns([1.2, 1.2, 1.2])
+                        with col_b: e_base = st.number_input("Início (R$):", value=float(base_ini_e), step=5.0, key="e_base")
+                        with col_i: e_inc = st.number_input("Aumento (R$):", value=float(inc_e), step=5.0, key="e_inc")
+                        with col_t: e_teto = st.number_input("Teto (R$):", value=float(teto_e), step=5.0, key="e_teto")
+                        
+                        st.info("💡 Alterar o Início, Aumento ou Teto recalculará as divisões do atleta automaticamente.")
+                        
+                        if st.button("💾 Salvar Alterações", use_container_width=True, type="primary", key="btn_salvar_edit"):
+                            if edit_nome and e_teto > e_base and e_inc > 0:
+                                edit_jogador(jogador_editar, edit_nome, avatar_final_edit, e_base, e_inc, e_teto)
+                                st.success("Perfil atualizado com sucesso!")
+                                time.sleep(1.5)
+                                st.rerun()
+                            else:
+                                st.error("Verifique os valores. O Teto deve ser maior que o Início.")
+
+            with sub_del:
+                st.markdown("**Remover Jogador do Elenco**")
+                st.warning("CUIDADO: Esta ação apagará permanentemente o perfil, o histórico e a sala de troféus.")
+                col_excluir, col_btn_excluir = st.columns([3, 1])
+                with col_excluir:
+                    jogador_excluir = st.selectbox("Selecione o jogador:", jogadores_ativos, label_visibility="collapsed", key="del_sel_jog")
+                with col_btn_excluir:
+                    confirmar = st.checkbox("Confirmar", key="chk_excluir")
+                    if st.button("Excluir", use_container_width=True, disabled=not confirmar):
+                        delete_jogador(jogador_excluir)
+                        st.success(f"O jogador {jogador_excluir} foi removido.")
+                        time.sleep(1.5)
+                        st.rerun()
 
 elif senha != "":
     st.error("Senha Incorreta.")
