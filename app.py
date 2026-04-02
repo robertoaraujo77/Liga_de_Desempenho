@@ -272,7 +272,7 @@ def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, falta
     elif "Esmeralda" in div_nome: bg_gradient = "linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%)"
     elif "Rubi" in div_nome: bg_gradient = "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)"
 
-    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else ""
+    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else "<div style='display:none;'></div>"
 
     st.markdown(f'''
 <div style="display: flex; justify-content: center; margin-bottom: 25px;">
