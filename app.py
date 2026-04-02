@@ -330,14 +330,15 @@ if jogador_selecionado:
                 st.subheader("🌟 Histórico de Temporadas")
                 df_trofeus = get_trofeus(jogador_selecionado)
                 if not df_trofeus.empty:
-                    df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {x:.2f}".replace('.', ','))
+                    # Renomeia as colunas à força para garantir que o R seja maiúsculo
+                    df_trofeus.columns = ['Data', 'Nível', 'Recompensa']
+                    df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
                     st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
                 else:
                     st.info(f"{jogador_selecionado} ainda não encerrou nenhuma temporada.")
 
-
 # ==========================================
-# ÁREA DA ARBITRAGEM (SÓ VOCÊ E A PALOMA)
+# ÁREA DA ARBITRAGEM
 # ==========================================
 st.markdown("---")
 st.markdown("### 🔐 Área da Arbitragem")
