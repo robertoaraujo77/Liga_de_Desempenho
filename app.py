@@ -43,7 +43,6 @@ ESTILOS_AVATAR = {
 # PROCESSAMENTO DE IMAGENS (CONVERSÃO B64)
 # ==========================================
 def converter_para_base64(image):
-    # Pega a imagem já recortada pelo usuário, redimensiona e converte
     image = image.resize((150, 150), Image.Resampling.LANCZOS)
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
@@ -131,6 +130,9 @@ def init_db():
         res_titulos = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status' AND column_name='titulos'")).fetchone()
         if not res_titulos: s.execute(text("ALTER TABLE status ADD COLUMN titulos INTEGER DEFAULT 0"))
 
+        res_limite = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status' AND column_name='limite_faltas'")).fetchone()
+        if not res_limite: s.execute(text("ALTER TABLE status ADD COLUMN limite_faltas REAL DEFAULT 5.0"))
+
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT DEFAULT 'falta')'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, descricao TEXT, valor REAL)'''))
@@ -170,37 +172,39 @@ def get_jogadores():
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos FROM status WHERE nome = :n', params={"n": jogador}, ttl=0)
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas FROM status WHERE nome = :n', params={"n": jogador}, ttl=0)
     if not df.empty:
         row = df.iloc[0].to_dict()
         teto = row.get('teto_maximo')
         if pd.isna(teto) or teto is None: teto = row.get('base_inicial') + (row.get('incremento') * 3)
         tits = row.get('titulos')
         if pd.isna(tits) or tits is None: tits = 0
+        limite = row.get('limite_faltas')
+        if pd.isna(limite) or limite is None: limite = 5.0
+        
         return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
-                row['avatar'], row['base_inicial'], row['incremento'], float(teto), int(tits))
+                row['avatar'], row['base_inicial'], row['incremento'], float(teto), int(tits), float(limite))
     return None
 
-def update_status(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo):
+def update_status(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo, limite_faltas):
     with conn.session as s:
-        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av, titulos=:t, teto_maximo=:tm WHERE nome=:nome'), 
-                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo)})
+        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av, titulos=:t, teto_maximo=:tm, limite_faltas=:lf WHERE nome=:nome'), 
+                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas)})
         s.commit()
 
-def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo):
+def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas):
     with conn.session as s:
-        s.execute(text('INSERT INTO status (nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos) VALUES (:n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0)'), 
-                  {"n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo})
+        s.execute(text('INSERT INTO status (nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas) VALUES (:n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf)'), 
+                  {"n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas})
         s.commit()
 
-# --- NOVA FUNÇÃO: EDITAR JOGADOR (CASCATA) ---
-def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo):
+def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas):
     with conn.session as s:
         s.execute(text('''
             UPDATE status 
-            SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm 
+            SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf 
             WHERE nome=:na
-        '''), {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "na": nome_antigo})
+        '''), {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "na": nome_antigo})
 
         if nome_antigo != novo_nome:
             s.execute(text('UPDATE historico SET nome=:nn WHERE nome=:na'), {"nn": novo_nome, "na": nome_antigo})
@@ -231,14 +235,14 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
         s.execute(text('DELETE FROM historico WHERE id = :id'), {"id": int(id_item)})
         s.commit()
-    nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos = get_status(jogador)
+    nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite = get_status(jogador)
     if tipo_item == 'falta':
         novo_saldo = saldo + float(valor_item)
         novas_faltas = max(0.0, faltas - float(valor_item))
     else: 
         novo_saldo = saldo - float(valor_item)
         novas_faltas = faltas
-    update_status(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto)
+    update_status(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite)
 
 def clear_historico(jogador):
     with conn.session as s:
@@ -319,7 +323,7 @@ else:
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
     if dados_jogador:
-        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos = dados_jogador
+        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas = dados_jogador
         
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual)
         nome_divisao_exibicao = div_atual["nome"]
@@ -340,7 +344,7 @@ if jogador_selecionado:
                 novo_index = index_atual
                 animacao_tipo = None
 
-                if faltas_atual <= 5.0 and not teve_vermelho:
+                if faltas_atual <= limite_faltas and not teve_vermelho:
                     if index_atual == len(divisoes) - 1:
                         titulos += 1
                         animacao_tipo = 'titulo'
@@ -370,7 +374,7 @@ if jogador_selecionado:
                 elif animacao_tipo == 'manter': st.session_state.animacao_manter = True
 
                 add_trofeu(jogador_selecionado, novo_nome_div, saldo_atual)
-                update_status(jogador_selecionado, novo_nome_div, nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
+                update_status(jogador_selecionado, novo_nome_div, nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
                 clear_historico(jogador_selecionado)
                 st.rerun()
 
@@ -382,10 +386,10 @@ if jogador_selecionado:
             with aba1:
                 col1, col2 = st.columns(2)
                 col1.metric("Saldo do Mês", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
-                col2.metric("Faltas Acumuladas", f"R$ {faltas_atual:.2f}".replace('.', ','), delta="- Limite: R$ 5,00", delta_color="inverse")
+                col2.metric("Faltas Acumuladas", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
 
-                st.markdown("**Progresso da Tolerância (Limite R$ 5,00):**")
-                porcentagem = min((faltas_atual / 5.0) * 100, 100)
+                st.markdown(f"**Progresso da Tolerância (Limite R$ {limite_faltas:.2f}):**".replace('.', ','))
+                porcentagem = min((faltas_atual / limite_faltas) * 100, 100) if limite_faltas > 0 else 100
                 if porcentagem < 50: cor_barra = "#28a745"
                 elif porcentagem < 100: cor_barra = "#fd7e14"
                 else: cor_barra = "#dc3545"
@@ -396,7 +400,7 @@ if jogador_selecionado:
                     </div>
                 """, unsafe_allow_html=True)
 
-                if faltas_atual <= 5.00:
+                if faltas_atual <= limite_faltas:
                     st.success("🟢 Tudo certo! Na zona de classificação.")
                 else:
                     base_de_baixo = divisoes[index_atual - 1]["valor"] if index_atual > 0 else 0
@@ -474,17 +478,19 @@ if senha == "2811":
                 cropped_img = st_cropper(img_raw, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_cad_first")
                 avatar_final = converter_para_base64(cropped_img)
             
-        col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
+        col_base, col_inc, col_teto, col_limite = st.columns([1, 1, 1, 1.2])
         with col_base:
             base_ini = st.number_input("Início (R$):", value=50.0, step=5.0)
         with col_inc:
             inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0)
         with col_teto:
             teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0)
+        with col_limite:
+            limite_val = st.number_input("Lim. Faltas:", value=5.0, step=1.0)
             
         if st.button("Cadastrar e Iniciar Liga", type="primary", use_container_width=True):
             if novo_nome and teto_val > base_ini and inc_val > 0:
-                add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val)
+                add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, limite_val)
                 st.success(f"O jogador {novo_nome} entrou em campo!")
                 time.sleep(1.5)
                 st.rerun()
@@ -498,7 +504,7 @@ if senha == "2811":
             if aguardando_resgate == 1:
                 st.warning(f"⏳ O sistema está pausado aguardando o resgate.")
                 if st.button("❌ Cancelar Autorização", use_container_width=True):
-                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
+                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
                     st.rerun()
             else:
                 st.markdown("**🔴 Aplicar Penalidade (Falta)**")
@@ -510,7 +516,7 @@ if senha == "2811":
                         valor = regras_dinamicas[infracao_selecionada]
                         novo_saldo = saldo_atual - valor
                         novas_faltas = faltas_atual + valor
-                        update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, novas_faltas, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
+                        update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, novas_faltas, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
                         add_historico(jogador_selecionado, infracao_selecionada, valor, 'falta')
                         st.rerun()
                         
@@ -527,7 +533,7 @@ if senha == "2811":
                     if st.button("Aplicar Bônus", use_container_width=True):
                         if motivo_bonus:
                             novo_saldo = saldo_atual + valor_bonus
-                            update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
+                            update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
                             add_historico(jogador_selecionado, f"⭐ {motivo_bonus}", valor_bonus, 'bonus')
                             st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
@@ -561,7 +567,7 @@ if senha == "2811":
                 st.markdown("**🏁 Fechamento do Mês**")
                 st.warning(f"Isto liberará o botão surpresa de virada de mês para o {jogador_selecionado}.")
                 if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
-                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=1, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
+                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=1, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
                     st.rerun()
 
         with tab_regras:
@@ -634,17 +640,19 @@ if senha == "2811":
                         cropped_img = st_cropper(img_raw, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_cad")
                         avatar_final = converter_para_base64(cropped_img)
                     
-                col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
+                col_base, col_inc, col_teto, col_limite = st.columns([1, 1, 1, 1.2])
                 with col_base:
                     base_ini = st.number_input("Início (R$):", value=50.0, step=5.0, key="cad_base")
                 with col_inc:
                     inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0, key="cad_inc")
                 with col_teto:
                     teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0, key="cad_teto")
+                with col_limite:
+                    lim_val = st.number_input("Lim. Faltas:", value=5.0, step=1.0, key="cad_limite")
                     
                 if st.button("Cadastrar Jogador", use_container_width=True, key="btn_cadastrar"):
                     if novo_nome and novo_nome not in jogadores_ativos and teto_val > base_ini and inc_val > 0:
-                        add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val)
+                        add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, lim_val)
                         st.success(f"{novo_nome} escalado para a liga!")
                         time.sleep(1.5)
                         st.rerun()
@@ -659,7 +667,7 @@ if senha == "2811":
                     jogador_editar = st.selectbox("Selecione o jogador:", jogadores_ativos, key="edit_sel_jog")
                     dados_edit = get_status(jogador_editar)
                     if dados_edit:
-                        niv_e, base_e, saldo_e, faltas_e, ag_e, avatar_atual_e, base_ini_e, inc_e, teto_e, tits_e = dados_edit
+                        niv_e, base_e, saldo_e, faltas_e, ag_e, avatar_atual_e, base_ini_e, inc_e, teto_e, tits_e, limite_e = dados_edit
                         
                         edit_nome = st.text_input("Nome:", value=jogador_editar, key="edit_nome")
                         
@@ -676,16 +684,17 @@ if senha == "2811":
                                 cropped_img_edit = st_cropper(img_raw_edit, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_edit")
                                 avatar_final_edit = converter_para_base64(cropped_img_edit)
                         
-                        col_b, col_i, col_t = st.columns([1.2, 1.2, 1.2])
+                        col_b, col_i, col_t, col_l = st.columns([1, 1, 1, 1.2])
                         with col_b: e_base = st.number_input("Início (R$):", value=float(base_ini_e), step=5.0, key="e_base")
                         with col_i: e_inc = st.number_input("Aumento (R$):", value=float(inc_e), step=5.0, key="e_inc")
                         with col_t: e_teto = st.number_input("Teto (R$):", value=float(teto_e), step=5.0, key="e_teto")
+                        with col_l: e_lim = st.number_input("Lim. Faltas:", value=float(limite_e), step=1.0, key="e_limite")
                         
                         st.info("💡 Alterar o Início, Aumento ou Teto recalculará as divisões do atleta automaticamente.")
                         
                         if st.button("💾 Salvar Alterações", use_container_width=True, type="primary", key="btn_salvar_edit"):
                             if edit_nome and e_teto > e_base and e_inc > 0:
-                                edit_jogador(jogador_editar, edit_nome, avatar_final_edit, e_base, e_inc, e_teto)
+                                edit_jogador(jogador_editar, edit_nome, avatar_final_edit, e_base, e_inc, e_teto, e_lim)
                                 st.success("Perfil atualizado com sucesso!")
                                 time.sleep(1.5)
                                 st.rerun()
