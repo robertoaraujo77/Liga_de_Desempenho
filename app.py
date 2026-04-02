@@ -136,7 +136,7 @@ def get_status(jogador):
 def update_status(jogador, nivel, base, saldo, faltas, aguardando, avatar):
     with conn.session as s:
         s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av WHERE nome=:nome'), 
-                  {"n": nivel, "b": base, "s": saldo, "f": faltas, "ag": aguardando, "av": avatar, "nome": jogador})
+                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador)})
         s.commit()
 
 def add_jogador(nome, estilo_avatar, base_inicial, incremento):
@@ -156,7 +156,7 @@ def add_historico(jogador, infracao, valor, tipo='falta'):
     agora = datetime.now().strftime("%d/%m/%Y %H:%M")
     with conn.session as s:
         s.execute(text('INSERT INTO historico (nome, data, infracao, desconto, tipo) VALUES (:n, :d, :i, :v, :t)'), 
-                  {"n": jogador, "d": agora, "i": infracao, "v": valor, "t": tipo})
+                  {"n": str(jogador), "d": agora, "i": str(infracao), "v": float(valor), "t": str(tipo)})
         s.commit()
 
 def get_historico(jogador):
@@ -167,14 +167,14 @@ def get_historico_admin(jogador):
 
 def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
-        s.execute(text('DELETE FROM historico WHERE id = :id'), {"id": id_item})
+        s.execute(text('DELETE FROM historico WHERE id = :id'), {"id": int(id_item)})
         s.commit()
     nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc = get_status(jogador)
     if tipo_item == 'falta':
-        novo_saldo = saldo + valor_item
-        novas_faltas = max(0, faltas - valor_item)
+        novo_saldo = saldo + float(valor_item)
+        novas_faltas = max(0.0, faltas - float(valor_item))
     else: 
-        novo_saldo = saldo - valor_item
+        novo_saldo = saldo - float(valor_item)
         novas_faltas = faltas
     update_status(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar)
 
@@ -190,7 +190,7 @@ def add_trofeu(jogador, nivel, saldo):
     data_formatada = f"{mes_atual}/{ano_atual}"
     with conn.session as s:
         s.execute(text('INSERT INTO trofeus (nome, data, nivel, saldo) VALUES (:n, :d, :niv, :s)'), 
-                  {"n": jogador, "d": data_formatada, "niv": nivel, "s": saldo})
+                  {"n": str(jogador), "d": data_formatada, "niv": str(nivel), "s": float(saldo)})
         s.commit()
 
 def get_trofeus(jogador):
