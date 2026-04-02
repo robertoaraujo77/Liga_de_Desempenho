@@ -495,7 +495,7 @@ if senha == "2811":
             if novo_nome and teto_val > base_ini and inc_val > 0:
                 qtd_divisoes = int(round((teto_val - base_ini) / inc_val)) + 1
                 if qtd_divisoes > 15:
-                    st.error(f"⚠️ O campeonato ficou muito longo ({qtd_divisoes} divisões). O limite são 15. Aumente o valor do 'Aumento' ou diminua o 'Teto'.")
+                    st.error(f"⚠️ O campeonato ficou muito longo ({qtd_divisoes} divisões). O limite são 15. Altere o valor do 'Aumento' ou diminua o 'Teto'.")
                 else:
                     add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, limite_val)
                     st.success(f"O jogador {novo_nome} entrou em campo!")
