@@ -53,15 +53,15 @@ def mostrar_popup(titulo, mensagem, cor, emoji):
 if 'animacao_vitoria' in st.session_state and st.session_state.animacao_vitoria:
     st.session_state.animacao_vitoria = False
     st.balloons()
-    mostrar_popup("CAMPEÃO!", "Excelente trabalho! Você subiu de divisão.", "#28a745", "🏆")
+    mostrar_popup("CAMPEÃO!", "Excelente trabalho! Você subiu de divisão.", "#28a745", "⬆️🏆⬆️")
 
 if 'animacao_derrota' in st.session_state and st.session_state.animacao_derrota:
     st.session_state.animacao_derrota = False
-    mostrar_popup("REBAIXADO!", "O limite estourou. Você caiu de divisão...", "#dc3545", "🟥")
+    mostrar_popup("REBAIXADO!", "O limite estourou. Você caiu de divisão...", "#dc3545", "⬇️🟥⬇️")
 
 if 'animacao_manter' in st.session_state and st.session_state.animacao_manter:
     st.session_state.animacao_manter = False
-    mostrar_popup("QUASE!", "Não subiu, mas escapou do rebaixamento. Foco no próximo mês!", "#fd7e14", "⚠️")
+    mostrar_popup("QUASE!", "Não subiu, mas escapou do rebaixamento. Foco no próximo mês!", "#fd7e14", "↪️⚠️↩️")
 
 
 # ==========================================
@@ -72,7 +72,7 @@ conn = st.connection("postgresql", type="sql")
 
 def init_db():
     with conn.session as s:
-        s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT DEFAULT 'notionists', base_inicial REAL DEFAULT 60.0, incremento REAL DEFAULT 10.0)'''))
+        s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT DEFAULT 'notionists', base_inicial REAL DEFAULT 50.0, incremento REAL DEFAULT 10.0)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT DEFAULT 'falta')'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, descricao TEXT, valor REAL)'''))
@@ -476,9 +476,11 @@ if senha == "2811":
                 
                 col_edit_desc, col_edit_val = st.columns([3, 1])
                 with col_edit_desc:
-                    novo_texto = st.text_input("Descrição:", value=regra_selecionada, key="edit_regra_desc")
+                    # A key agora muda conforme o nome da regra selecionada
+                    novo_texto = st.text_input("Descrição:", value=regra_selecionada, key=f"edit_desc_{regra_selecionada}")
                 with col_edit_val:
-                    novo_valor = st.number_input("Valor (R$):", value=float(regras_dinamicas[regra_selecionada]), min_value=0.50, step=0.50, key="edit_regra_val")
+                    # A key dinâmica força a tela a atualizar com o valor correto
+                    novo_valor = st.number_input("Valor (R$):", value=float(regras_dinamicas[regra_selecionada]), min_value=0.50, step=0.50, key=f"edit_val_{regra_selecionada}")
                 
                 col_btn_save, col_btn_del = st.columns(2)
                 with col_btn_save:
