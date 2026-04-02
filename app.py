@@ -8,6 +8,7 @@ import re
 from sqlalchemy import text
 from PIL import Image
 import io
+from streamlit_cropper import st_cropper
 
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E CSS
@@ -39,31 +40,15 @@ ESTILOS_AVATAR = {
 }
 
 # ==========================================
-# PROCESSAMENTO DE IMAGENS (UPLOAD)
+# PROCESSAMENTO DE IMAGENS (CONVERSÃO B64)
 # ==========================================
-def processar_imagem(uploaded_file):
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        image = image.convert("RGBA")
-        
-        # Cortar a imagem para ficar quadrada (centralizada)
-        width, height = image.size
-        min_dim = min(width, height)
-        left = (width - min_dim) / 2
-        top = (height - min_dim) / 2
-        right = (width + min_dim) / 2
-        bottom = (height + min_dim) / 2
-        image = image.crop((left, top, right, bottom))
-        
-        # Redimensionar para ficar leve no banco de dados
-        image = image.resize((150, 150), Image.Resampling.LANCZOS)
-        
-        # Converter para Base64
-        buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return f"data:image/png;base64,{img_str}"
-    return None
+def converter_para_base64(image):
+    # Pega a imagem já recortada pelo usuário, redimensiona e converte
+    image = image.resize((150, 150), Image.Resampling.LANCZOS)
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
 
 # ==========================================
 # MOTOR MATEMÁTICO DE DIVISÕES
@@ -275,13 +260,11 @@ def get_trofeus(jogador):
 
 # Cartinha Estilo EA FC
 def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
-    # Detecta se é foto base64 ou avatar DiceBear
     if estilo_avatar.startswith("data:image"):
         img_src = estilo_avatar
     else:
         img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
 
-    # Calcula o Overall (OVR)
     ovr = 90
     if faltas == 0: ovr += 4
     ovr += int(max(0, saldo - base) / 3) 
@@ -485,7 +468,11 @@ if senha == "2811":
             avatar_final = ESTILOS_AVATAR[nome_avatar]
         else:
             foto_upload = st.file_uploader("Envie a foto (PNG/JPG):", type=["png", "jpg", "jpeg"])
-            if foto_upload: avatar_final = processar_imagem(foto_upload)
+            if foto_upload: 
+                img_raw = Image.open(foto_upload).convert("RGB")
+                st.markdown("**🖱️ Arraste e redimensione o quadrado azul para centralizar o rosto:**")
+                cropped_img = st_cropper(img_raw, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_cad_first")
+                avatar_final = converter_para_base64(cropped_img)
             
         col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
         with col_base:
@@ -641,7 +628,11 @@ if senha == "2811":
                     avatar_final = ESTILOS_AVATAR[nome_avatar]
                 else:
                     foto_upload = st.file_uploader("Envie a foto (PNG/JPG):", type=["png", "jpg", "jpeg"], key="cad_upload")
-                    if foto_upload: avatar_final = processar_imagem(foto_upload)
+                    if foto_upload: 
+                        img_raw = Image.open(foto_upload).convert("RGB")
+                        st.markdown("**🖱️ Arraste e redimensione o quadrado azul para centralizar o rosto:**")
+                        cropped_img = st_cropper(img_raw, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_cad")
+                        avatar_final = converter_para_base64(cropped_img)
                     
                 col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
                 with col_base:
@@ -679,7 +670,11 @@ if senha == "2811":
                             avatar_final_edit = ESTILOS_AVATAR[nome_avatar_edit]
                         elif tipo_foto_edit == "Nova Foto (Upload)":
                             foto_upload_edit = st.file_uploader("Envie a nova foto:", type=["png", "jpg", "jpeg"], key="edit_upload")
-                            if foto_upload_edit: avatar_final_edit = processar_imagem(foto_upload_edit)
+                            if foto_upload_edit: 
+                                img_raw_edit = Image.open(foto_upload_edit).convert("RGB")
+                                st.markdown("**🖱️ Arraste e redimensione o quadrado azul para centralizar o rosto:**")
+                                cropped_img_edit = st_cropper(img_raw_edit, aspect_ratio=(1, 1), box_color='#0000FF', key="crop_edit")
+                                avatar_final_edit = converter_para_base64(cropped_img_edit)
                         
                         col_b, col_i, col_t = st.columns([1.2, 1.2, 1.2])
                         with col_b: e_base = st.number_input("Início (R$):", value=float(base_ini_e), step=5.0, key="e_base")
