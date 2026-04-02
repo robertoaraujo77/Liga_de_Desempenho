@@ -269,11 +269,14 @@ def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, falta
     else:
         img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
 
-    ovr = 90
-    if faltas == 0: ovr += 4
-    ovr += int(max(0, saldo - base) / 3) 
-    ovr -= int(faltas * 3) 
-    ovr = min(99, max(40, ovr))
+    # NOVO MOTOR DE OVERALL (OVR) EA FC 99
+    ovr = 99
+    bonus_acumulado = max(0, saldo - (base - faltas))
+    
+    # Cada R$1 de falta tira 5 pontos, cada R$1 de bônus recupera 3
+    ovr -= int(faltas * 5)
+    ovr += int(bonus_acumulado * 3)
+    ovr = min(99, max(40, ovr)) # Mantém travado entre 40 e 99
 
     bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)"
     if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
@@ -490,10 +493,14 @@ if senha == "2811":
             
         if st.button("Cadastrar e Iniciar Liga", type="primary", use_container_width=True):
             if novo_nome and teto_val > base_ini and inc_val > 0:
-                add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, limite_val)
-                st.success(f"O jogador {novo_nome} entrou em campo!")
-                time.sleep(1.5)
-                st.rerun()
+                qtd_divisoes = int(round((teto_val - base_ini) / inc_val)) + 1
+                if qtd_divisoes > 15:
+                    st.error(f"⚠️ O campeonato ficou muito longo ({qtd_divisoes} divisões). O limite são 15. Aumente o valor do 'Aumento' ou diminua o 'Teto'.")
+                else:
+                    add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, limite_val)
+                    st.success(f"O jogador {novo_nome} entrou em campo!")
+                    time.sleep(1.5)
+                    st.rerun()
             else:
                 st.error("Verifique os valores. O Teto deve ser maior que o Início.")
     else:
@@ -652,10 +659,14 @@ if senha == "2811":
                     
                 if st.button("Cadastrar Jogador", use_container_width=True, key="btn_cadastrar"):
                     if novo_nome and novo_nome not in jogadores_ativos and teto_val > base_ini and inc_val > 0:
-                        add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, lim_val)
-                        st.success(f"{novo_nome} escalado para a liga!")
-                        time.sleep(1.5)
-                        st.rerun()
+                        qtd_divisoes = int(round((teto_val - base_ini) / inc_val)) + 1
+                        if qtd_divisoes > 15:
+                            st.error(f"⚠️ O campeonato ficou muito longo ({qtd_divisoes} divisões). O limite são 15. Aumente o valor do 'Aumento' ou diminua o 'Teto'.")
+                        else:
+                            add_jogador(novo_nome, avatar_final, base_ini, inc_val, teto_val, lim_val)
+                            st.success(f"{novo_nome} escalado para a liga!")
+                            time.sleep(1.5)
+                            st.rerun()
                     elif novo_nome in jogadores_ativos:
                         st.error("Jogador já existe no elenco!")
                     else:
@@ -694,10 +705,14 @@ if senha == "2811":
                         
                         if st.button("💾 Salvar Alterações", use_container_width=True, type="primary", key="btn_salvar_edit"):
                             if edit_nome and e_teto > e_base and e_inc > 0:
-                                edit_jogador(jogador_editar, edit_nome, avatar_final_edit, e_base, e_inc, e_teto, e_lim)
-                                st.success("Perfil atualizado com sucesso!")
-                                time.sleep(1.5)
-                                st.rerun()
+                                qtd_divisoes = int(round((e_teto - e_base) / e_inc)) + 1
+                                if qtd_divisoes > 15:
+                                    st.error(f"⚠️ O campeonato ficou muito longo ({qtd_divisoes} divisões). O limite são 15. Aumente o 'Aumento' ou diminua o 'Teto'.")
+                                else:
+                                    edit_jogador(jogador_editar, edit_nome, avatar_final_edit, e_base, e_inc, e_teto, e_lim)
+                                    st.success("Perfil atualizado com sucesso!")
+                                    time.sleep(1.5)
+                                    st.rerun()
                             else:
                                 st.error("Verifique os valores. O Teto deve ser maior que o Início.")
 
