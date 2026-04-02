@@ -21,7 +21,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-NIVEIS = ["Nível 1 - Bronze", "Nível 2 - Prata", "Nível 3 - Ouro", "Nível 4 - Diamante"]
+# Ranking Dinâmico das Divisões (De cima para baixo)
+PEDRAS = [
+    "Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrita 💠",
+    "Painite 🩸", "Musgravite 🪨", "Opala Negra 🌌", "Esmeralda 🟩",
+    "Rubi 🔴", "Safira 🔷", "Tanzanita 🪻", "Turmalina 🍉", "Topázio 🔶", "Jade 🟢"
+]
 
 ESTILOS_AVATAR = {
     "🧑 Desenho Moderno": "notionists", "🤠 Aventureiro": "adventurer", "🤖 Robô": "bottts",
@@ -30,6 +35,36 @@ ESTILOS_AVATAR = {
     "✏️ Rabisco": "croodles", "🎀 Meninas": "lorelei", "🖍️ Minimalista": "miniavs",
     "🧍 Corpo Inteiro": "open-peeps", "👍 Joinhas": "thumbs"
 }
+
+# ==========================================
+# MOTOR MATEMÁTICO DE DIVISÕES
+# ==========================================
+def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual):
+    inc = max(incremento, 1.0) # Previne divisão por zero
+    saltos_totais = int(round((teto_maximo - base_inicial) / inc))
+    qtd_divisoes = saltos_totais + 1
+
+    divisoes = []
+    for i in range(qtd_divisoes):
+        valor = base_inicial + (i * inc)
+        num_divisao = qtd_divisoes - i
+        pedra_idx = min(num_divisao - 1, len(PEDRAS) - 1)
+        nome = f"{num_divisao}ª Divisão - {PEDRAS[pedra_idx]}"
+        divisoes.append({"nome": nome, "valor": valor, "num_divisao": num_divisao})
+
+    # Ordena da divisão mais baixa (início) para a Elite (Ouro)
+    divisoes = sorted(divisoes, key=lambda x: x["valor"])
+
+    # Identifica onde o atleta está agora
+    div_atual = divisoes[0]
+    index_atual = 0
+    for idx, div in enumerate(divisoes):
+        if abs(div["valor"] - base_atual) < 0.1: 
+            div_atual = div
+            index_atual = idx
+            break
+
+    return divisoes, div_atual, index_atual
 
 # ==========================================
 # GATILHOS DE ANIMAÇÃO
@@ -41,43 +76,54 @@ def mostrar_popup(titulo, mensagem, cor, emoji):
             <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.85); z-index: 999999; display: flex; justify-content: center; align-items: center;">
                 <div style="background-color: #1e1e1e; padding: 40px 60px; border-radius: 20px; text-align: center; border: 3px solid {cor}; box-shadow: 0 10px 40px rgba(0,0,0,0.9); max-width: 80%;">
                     <div style="font-size: 80px; margin-bottom: 10px;">{emoji}</div>
-                    <h1 style="color: {cor}; margin: 0; font-size: 36px; font-weight: bold;">{titulo}</h1>
-                    <p style="color: #ffffff; font-size: 22px; margin-top: 15px;">{mensagem}</p>
+                    <h1 style="color: {cor}; margin: 0; font-size: 32px; font-weight: bold;">{titulo}</h1>
+                    <p style="color: #ffffff; font-size: 20px; margin-top: 15px;">{mensagem}</p>
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    time.sleep(4)
+    time.sleep(5)
     aviso.empty()
     st.rerun()
+
+if 'animacao_titulo' in st.session_state and st.session_state.animacao_titulo:
+    st.session_state.animacao_titulo = False
+    st.balloons()
+    mostrar_popup("CAMPEÃO DA ELITE!", "Você manteve a Coroa na 1ª Divisão!", "#ffd700", "🏆👑")
 
 if 'animacao_vitoria' in st.session_state and st.session_state.animacao_vitoria:
     st.session_state.animacao_vitoria = False
     st.balloons()
-    mostrar_popup("CAMPEÃO!", "Excelente trabalho! Você subiu de divisão.", "#28a745", "⬆️🏆⬆️")
+    mostrar_popup("SUBIU DE DIVISÃO!", f"Excelente! Você alcançou a<br><b>{st.session_state.nome_pedra_vitoria}</b>", "#28a745", "⬆️🚀")
 
 if 'animacao_derrota' in st.session_state and st.session_state.animacao_derrota:
     st.session_state.animacao_derrota = False
-    mostrar_popup("REBAIXADO!", "O limite estourou. Você caiu de divisão...", "#dc3545", "⬇️🟥⬇️")
+    mostrar_popup("REBAIXADO!", f"O limite estourou. Você caiu para a<br><b>{st.session_state.nome_pedra_derrota}</b>...", "#dc3545", "⬇️🟥")
 
 if 'animacao_manter' in st.session_state and st.session_state.animacao_manter:
     st.session_state.animacao_manter = False
-    mostrar_popup("QUASE!", "Não subiu, mas escapou do rebaixamento. Foco no próximo mês!", "#fd7e14", "↪️⚠️↩️")
+    mostrar_popup("QUASE!", "Não subiu, mas escapou do rebaixamento. Foco no próximo mês!", "#fd7e14", "↪️⚠️")
 
 
 # ==========================================
 # CONEXÃO COM SUPABASE (POSTGRESQL)
 # ==========================================
-# O Streamlit usará a secret configurada na nuvem para conectar
 conn = st.connection("postgresql", type="sql")
 
 def init_db():
     with conn.session as s:
         s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT DEFAULT 'notionists', base_inicial REAL DEFAULT 50.0, incremento REAL DEFAULT 10.0)'''))
+        
+        # Atualização segura do banco de dados (Adiciona as colunas novas se não existirem)
+        res_teto = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status' AND column_name='teto_maximo'")).fetchone()
+        if not res_teto: s.execute(text("ALTER TABLE status ADD COLUMN teto_maximo REAL DEFAULT 100.0"))
+        
+        res_titulos = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status' AND column_name='titulos'")).fetchone()
+        if not res_titulos: s.execute(text("ALTER TABLE status ADD COLUMN titulos INTEGER DEFAULT 0"))
+
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT DEFAULT 'falta')'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, descricao TEXT, valor REAL)'''))
         
-        # Inserir regras padrão se o banco for novo
         res = s.execute(text('SELECT COUNT(*) FROM regras')).scalar()
         if res == 0:
             regras_padrao = [
@@ -86,9 +132,7 @@ def init_db():
                 {"d": "🚽 Deixar a toalha no chão ou na privada", "v": 1.00},
                 {"d": "🧼 Não ir tomar banho quando solicitado", "v": 2.00},
                 {"d": "👟 Deixa roupa no chão e chuteira", "v": 2.00},
-                {"d": "😒 Reclama de ir aos treinos", "v": 2.00},
                 {"d": "📚 Não fazer a lição de casa quando mandar", "v": 5.00},
-                {"d": "🗑️ Não levar o lixo", "v": 5.00},
                 {"d": "🤬 Desobedecer aos pais (Cartão Vermelho)", "v": 20.00}
             ]
             s.execute(text('INSERT INTO regras (descricao, valor) VALUES (:d, :v)'), regras_padrao)
@@ -128,21 +172,27 @@ def get_jogadores():
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento FROM status WHERE nome = :n', params={"n": jogador}, ttl=0)
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos FROM status WHERE nome = :n', params={"n": jogador}, ttl=0)
     if not df.empty:
-        return tuple(df.iloc[0])
+        row = df.iloc[0].to_dict()
+        teto = row.get('teto_maximo')
+        if pd.isna(teto) or teto is None: teto = row.get('base_inicial') + (row.get('incremento') * 3) # Correção p/ jogadores antigos
+        tits = row.get('titulos')
+        if pd.isna(tits) or tits is None: tits = 0
+        return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
+                row['avatar'], row['base_inicial'], row['incremento'], float(teto), int(tits))
     return None
 
-def update_status(jogador, nivel, base, saldo, faltas, aguardando, avatar):
+def update_status(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo):
     with conn.session as s:
-        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av WHERE nome=:nome'), 
-                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador)})
+        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av, titulos=:t, teto_maximo=:tm WHERE nome=:nome'), 
+                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo)})
         s.commit()
 
-def add_jogador(nome, estilo_avatar, base_inicial, incremento):
+def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo):
     with conn.session as s:
-        s.execute(text('INSERT INTO status (nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento) VALUES (:n, :niv, :b, :s, :f, :ag, :av, :bi, :inc)'), 
-                  {"n": nome, "niv": NIVEIS[0], "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento})
+        s.execute(text('INSERT INTO status (nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos) VALUES (:n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0)'), 
+                  {"n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo})
         s.commit()
 
 def delete_jogador(nome):
@@ -169,14 +219,14 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
         s.execute(text('DELETE FROM historico WHERE id = :id'), {"id": int(id_item)})
         s.commit()
-    nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc = get_status(jogador)
+    nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos = get_status(jogador)
     if tipo_item == 'falta':
         novo_saldo = saldo + float(valor_item)
         novas_faltas = max(0.0, faltas - float(valor_item))
     else: 
         novo_saldo = saldo - float(valor_item)
         novas_faltas = faltas
-    update_status(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar)
+    update_status(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto)
 
 def clear_historico(jogador):
     with conn.session as s:
@@ -194,35 +244,61 @@ def add_trofeu(jogador, nivel, saldo):
         s.commit()
 
 def get_trofeus(jogador):
-    return conn.query('SELECT data as Data, nivel as Nível, saldo as Recompensa FROM trofeus WHERE nome = :n ORDER BY id DESC', params={"n": jogador}, ttl=0)
+    return conn.query('SELECT data as Data, nivel as Divisão, saldo as Recompensa FROM trofeus WHERE nome = :n ORDER BY id DESC', params={"n": jogador}, ttl=0)
 
-def render_header(nome_jogador, estilo_avatar):
+# Cartinha Estilo EA FC
+def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
     arquivo_foto = f"{nome_jogador.lower()}.jpg"
-    img_src = ""
+    img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
     if os.path.exists(arquivo_foto):
         with open(arquivo_foto, "rb") as img_file:
             img_b64 = base64.b64encode(img_file.read()).decode()
             img_src = f"data:image/jpeg;base64,{img_b64}"
-    else:
-        img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
-    
+
+    # Calcula o Overall (OVR)
+    ovr = 90
+    if faltas == 0: ovr += 4
+    ovr += int(max(0, saldo - base) / 3) # Bônus aumentam o OVR
+    ovr -= int(faltas * 3) # Faltas derrubam o OVR
+    ovr = min(99, max(40, ovr))
+
+    # Identidade visual baseada na divisão
+    bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)" # Azul padrão
+    if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
+    elif "Prata" in div_nome: bg_gradient = "linear-gradient(135deg, #e3e3e3 0%, #b5b5b5 50%, #8a8a8a 100%)"
+    elif "Bronze" in div_nome: bg_gradient = "linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #8b4513 100%)"
+    elif "Diamante" in div_nome: bg_gradient = "linear-gradient(135deg, #b9f2ff 0%, #6dd5ed 50%, #2193b0 100%)"
+    elif "Alexandrita" in div_nome: bg_gradient = "linear-gradient(135deg, #8A2BE2 0%, #4B0082 100%)"
+    elif "Esmeralda" in div_nome: bg_gradient = "linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%)"
+    elif "Rubi" in div_nome: bg_gradient = "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)"
+
+    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else ""
+
     st.markdown(f'''
-        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1e1e1e; padding: 15px 25px; border-radius: 15px; margin-bottom: 25px; border: 1px solid #333;">
-            <h1 style="margin: 0; font-size: 1.6rem; color: #ffffff;">📊 {nome_jogador}</h1>
-            <img src="{img_src}" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #444; background-color: #e2e8f0;">
+        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
+            <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
+                    <div style="font-size: 32px; font-weight: 900; line-height: 1;">{ovr}</div>
+                    <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">OVR</div>
+                </div>
+                <img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+                <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
+                <div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
+                {texto_titulos}
+            </div>
         </div>
     ''', unsafe_allow_html=True)
 
 
 # ==========================================
-# LÓGICA DE SELEÇÃO DE JOGADORES E SISTEMA VAZIO
+# LÓGICA DE SELEÇÃO DE JOGADORES
 # ==========================================
 jogadores_ativos = get_jogadores()
 jogador_selecionado = None
 
 if len(jogadores_ativos) > 1:
     st.markdown("<div style='text-align: center; margin-bottom: 20px;'>", unsafe_allow_html=True)
-    jogador_selecionado = st.selectbox("👤 Selecione o Perfil:", jogadores_ativos)
+    jogador_selecionado = st.selectbox("👤 Selecione o Perfil:", jogadores_ativos, label_visibility="collapsed")
     st.markdown("</div>", unsafe_allow_html=True)
 elif len(jogadores_ativos) == 1:
     jogador_selecionado = jogadores_ativos[0]
@@ -235,16 +311,14 @@ else:
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
     if dados_jogador:
-        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento = dados_jogador
+        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos = dados_jogador
         
-        VALORES_BASE_DINAMICO = [
-            base_inicial, 
-            base_inicial + incremento, 
-            base_inicial + (incremento * 2), 
-            base_inicial + (incremento * 3)
-        ]
+        # Puxa o motor inteligente de divisões
+        divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual)
+        nome_divisao_exibicao = div_atual["nome"]
 
-        render_header(jogador_selecionado, estilo_avatar)
+        # Cartinha do Jogador
+        render_carta_ea_fc(jogador_selecionado, estilo_avatar, nome_divisao_exibicao, saldo_atual, base_atual, faltas_atual, titulos)
 
         if aguardando_resgate == 1:
             st.info(f"🚨 **Atenção {jogador_selecionado}!** O Árbitro encerrou a temporada. O placar está travado.")
@@ -255,28 +329,46 @@ if jogador_selecionado:
                 df_historico = get_historico(jogador_selecionado)
                 teve_vermelho = False
                 if not df_historico.empty:
-                    teve_vermelho = any("Cartão Vermelho" in inf for inf in df_historico['infracao'])
+                    teve_vermelho = any("Cartão Vermelho" in str(inf) for inf in df_historico['infracao'])
 
-                index_atual = NIVEIS.index(nivel_atual)
                 novo_index = index_atual
-                
+                animacao_tipo = None
+                ganhou_titulo = False
+
                 if faltas_atual <= 5.0 and not teve_vermelho:
-                    if index_atual < len(NIVEIS) - 1: novo_index = index_atual + 1
-                    st.session_state.animacao_vitoria = True 
+                    if index_atual == len(divisoes) - 1:
+                        # Estacionou na Elite (1ª Divisão) - Ganha Título
+                        titulos += 1
+                        ganhou_titulo = True
+                        animacao_tipo = 'titulo'
+                    else:
+                        novo_index = index_atual + 1
+                        animacao_tipo = 'vitoria'
                 else:
-                    base_de_baixo = VALORES_BASE_DINAMICO[index_atual - 1] if index_atual > 0 else 0
+                    base_de_baixo = divisoes[index_atual - 1]["valor"] if index_atual > 0 else 0
                     if teve_vermelho or saldo_atual <= base_de_baixo:
                         if index_atual > 0: novo_index = index_atual - 1
-                        st.session_state.animacao_derrota = True 
+                        animacao_tipo = 'derrota'
                     else:
                         novo_index = index_atual
-                        st.session_state.animacao_manter = True
-                        
-                novo_nivel = NIVEIS[novo_index]
-                nova_base = VALORES_BASE_DINAMICO[novo_index]
-                
-                add_trofeu(jogador_selecionado, novo_nivel, saldo_atual)
-                update_status(jogador_selecionado, novo_nivel, nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar)
+                        animacao_tipo = 'manter'
+
+                nova_divisao = divisoes[novo_index]
+                nova_base = nova_divisao["valor"]
+                novo_nome_div = nova_divisao["nome"]
+
+                # Configura a animação
+                if animacao_tipo == 'titulo': st.session_state.animacao_titulo = True
+                elif animacao_tipo == 'vitoria': 
+                    st.session_state.animacao_vitoria = True
+                    st.session_state.nome_pedra_vitoria = novo_nome_div
+                elif animacao_tipo == 'derrota':
+                    st.session_state.animacao_derrota = True
+                    st.session_state.nome_pedra_derrota = novo_nome_div
+                elif animacao_tipo == 'manter': st.session_state.animacao_manter = True
+
+                add_trofeu(jogador_selecionado, novo_nome_div, saldo_atual)
+                update_status(jogador_selecionado, novo_nome_div, nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
                 clear_historico(jogador_selecionado)
                 st.rerun()
 
@@ -286,14 +378,12 @@ if jogador_selecionado:
             aba1, aba2 = st.tabs(["🏟️ Placar do Mês", "🏆 Sala de Troféus"])
             
             with aba1:
-                col1, col2, col3 = st.columns([1.5, 1, 1.2])
-                col1.metric("Nível Atual", nivel_atual)
-                col2.metric("Saldo do Mês", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
-                col3.metric("Faltas Acumuladas", f"R$ {faltas_atual:.2f}".replace('.', ','), delta="- Limite: R$ 5,00", delta_color="inverse")
+                col1, col2 = st.columns(2)
+                col1.metric("Saldo do Mês", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
+                col2.metric("Faltas Acumuladas", f"R$ {faltas_atual:.2f}".replace('.', ','), delta="- Limite: R$ 5,00", delta_color="inverse")
 
                 st.markdown("**Progresso da Tolerância (Limite R$ 5,00):**")
                 porcentagem = min((faltas_atual / 5.0) * 100, 100)
-
                 if porcentagem < 50: cor_barra = "#28a745"
                 elif porcentagem < 100: cor_barra = "#fd7e14"
                 else: cor_barra = "#dc3545"
@@ -304,18 +394,33 @@ if jogador_selecionado:
                     </div>
                 """, unsafe_allow_html=True)
 
-                index_atual = NIVEIS.index(nivel_atual)
                 if faltas_atual <= 5.00:
-                    st.success("🟢 Tudo certo! Na zona de classificação para o próximo nível.")
+                    st.success("🟢 Tudo certo! Na zona de classificação.")
                 else:
-                    base_de_baixo = VALORES_BASE_DINAMICO[index_atual - 1] if index_atual > 0 else 0
+                    base_de_baixo = divisoes[index_atual - 1]["valor"] if index_atual > 0 else 0
                     if saldo_atual <= base_de_baixo:
                         st.error("🔴 Perigo: Você entrou na Zona de Rebaixamento!")
                     else:
                         st.warning("🟠 Atenção: A subida foi bloqueada, mas seu saldo garante permanência.")
 
                 st.markdown("---")
-                st.subheader("📋 Histórico do Mês")
+                
+                # Gráfico Sparkline de Desempenho
+                df_historico_asc = conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id ASC', params={"n": jogador_selecionado}, ttl=0)
+                timeline = [base_atual]
+                curr = base_atual
+                for _, row in df_historico_asc.iterrows():
+                    if row['tipo'] == 'bonus': curr += row['desconto']
+                    else: curr -= row['desconto']
+                    timeline.append(curr)
+                
+                if len(timeline) == 1: timeline.append(base_atual) # Cria a linha reta se não houver histórico
+                
+                st.markdown("**📈 Desempenho no Mês:**")
+                st.line_chart(timeline, height=150)
+
+                st.markdown("---")
+                st.subheader("📋 Histórico de Lançamentos")
                 df_historico = get_historico(jogador_selecionado)
                 if not df_historico.empty:
                     df_view = df_historico.copy()
@@ -330,8 +435,6 @@ if jogador_selecionado:
                 st.subheader("🌟 Histórico de Temporadas")
                 df_trofeus = get_trofeus(jogador_selecionado)
                 if not df_trofeus.empty:
-                    # Renomeia as colunas à força para garantir que o R seja maiúsculo
-                    df_trofeus.columns = ['Data', 'Nível', 'Recompensa']
                     df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
                     st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
                 else:
@@ -352,7 +455,6 @@ with col_btn_senha:
     st.button("🔓 Entrar", use_container_width=True)
 
 if senha == "2811":
-    
     if not jogador_selecionado:
         st.markdown("**➕ Cadastrar Primeiro Jogador**")
         col_novo_nome, col_novo_avatar = st.columns([2, 2])
@@ -361,20 +463,22 @@ if senha == "2811":
         with col_novo_avatar:
             nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), label_visibility="collapsed")
             
-        col_base, col_inc = st.columns([2, 2])
+        col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
         with col_base:
-            base_ini = st.number_input("Mesada Inicial (Nível 1 - R$):", value=60.0, step=5.0)
+            base_ini = st.number_input("Início (R$):", value=50.0, step=5.0)
         with col_inc:
-            inc_val = st.number_input("Aumento por Nível (R$):", value=10.0, step=5.0)
+            inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0)
+        with col_teto:
+            teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0)
             
         if st.button("Cadastrar e Iniciar Liga", type="primary", use_container_width=True):
-            if novo_nome:
-                add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val)
+            if novo_nome and teto_val > base_ini and inc_val > 0:
+                add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val, teto_val)
                 st.success(f"O jogador {novo_nome} entrou em campo!")
                 time.sleep(1.5)
                 st.rerun()
             else:
-                st.error("Digite o nome do jogador.")
+                st.error("Verifique os valores. O Teto deve ser maior que o Início.")
     else:
         regras_dinamicas = get_regras()
         tab_jogo, tab_regras, tab_elenco = st.tabs(["⚖️ Lançamentos", "📝 Regras", "⚙️ Elenco"])
@@ -383,7 +487,7 @@ if senha == "2811":
             if aguardando_resgate == 1:
                 st.warning(f"⏳ O sistema está pausado aguardando o resgate.")
                 if st.button("❌ Cancelar Autorização", use_container_width=True):
-                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=0, avatar=estilo_avatar)
+                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
                     st.rerun()
             else:
                 st.markdown("**🔴 Aplicar Penalidade (Falta)**")
@@ -395,7 +499,7 @@ if senha == "2811":
                         valor = regras_dinamicas[infracao_selecionada]
                         novo_saldo = saldo_atual - valor
                         novas_faltas = faltas_atual + valor
-                        update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, novas_faltas, aguardando=0, avatar=estilo_avatar)
+                        update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, novas_faltas, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
                         add_historico(jogador_selecionado, infracao_selecionada, valor, 'falta')
                         st.rerun()
                         
@@ -412,7 +516,7 @@ if senha == "2811":
                     if st.button("Aplicar Bônus", use_container_width=True):
                         if motivo_bonus:
                             novo_saldo = saldo_atual + valor_bonus
-                            update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, faltas_atual, aguardando=0, avatar=estilo_avatar)
+                            update_status(jogador_selecionado, nivel_atual, base_atual, novo_saldo, faltas_atual, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
                             add_historico(jogador_selecionado, f"⭐ {motivo_bonus}", valor_bonus, 'bonus')
                             st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
@@ -446,7 +550,7 @@ if senha == "2811":
                 st.markdown("**🏁 Fechamento do Mês**")
                 st.warning(f"Isto liberará o botão surpresa de virada de mês para o {jogador_selecionado}.")
                 if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
-                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=1, avatar=estilo_avatar)
+                    update_status(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando=1, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo)
                     st.rerun()
 
         with tab_regras:
@@ -476,10 +580,8 @@ if senha == "2811":
                 
                 col_edit_desc, col_edit_val = st.columns([3, 1])
                 with col_edit_desc:
-                    # A key agora muda conforme o nome da regra selecionada
                     novo_texto = st.text_input("Descrição:", value=regra_selecionada, key=f"edit_desc_{regra_selecionada}")
                 with col_edit_val:
-                    # A key dinâmica força a tela a atualizar com o valor correto
                     novo_valor = st.number_input("Valor (R$):", value=float(regras_dinamicas[regra_selecionada]), min_value=0.50, step=0.50, key=f"edit_val_{regra_selecionada}")
                 
                 col_btn_save, col_btn_del = st.columns(2)
@@ -507,22 +609,26 @@ if senha == "2811":
             with col_novo_nome:
                 novo_nome = st.text_input("Nome:", placeholder="Ex: Arthur", label_visibility="collapsed")
             with col_novo_avatar:
-                nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), label_visibility="collapsed")
+                nome_avatar = st.selectbox("Estilo do Avatar:", list(ESTILOS_AVATAR.keys()), label_visibility="collapsed", key="avatar_new")
                 
-            col_base, col_inc = st.columns([2, 2])
+            col_base, col_inc, col_teto = st.columns([1.2, 1.2, 1.2])
             with col_base:
-                base_ini = st.number_input("Mesada Inicial (R$):", value=50.0, step=5.0)
+                base_ini = st.number_input("Início (R$):", value=50.0, step=5.0, key="base_new")
             with col_inc:
-                inc_val = st.number_input("Aumento/Nível (R$):", value=10.0, step=5.0)
+                inc_val = st.number_input("Aumento (R$):", value=10.0, step=5.0, key="inc_new")
+            with col_teto:
+                teto_val = st.number_input("Teto (R$):", value=100.0, step=5.0, key="teto_new")
                 
             if st.button("Cadastrar Jogador", use_container_width=True):
-                if novo_nome and novo_nome not in jogadores_ativos:
-                    add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val)
+                if novo_nome and novo_nome not in jogadores_ativos and teto_val > base_ini and inc_val > 0:
+                    add_jogador(novo_nome, ESTILOS_AVATAR[nome_avatar], base_ini, inc_val, teto_val)
                     st.success(f"{novo_nome} escalado para a liga!")
                     time.sleep(1.5)
                     st.rerun()
                 elif novo_nome in jogadores_ativos:
                     st.error("Jogador já existe no elenco!")
+                else:
+                    st.error("O Teto deve ser maior que o Início.")
                     
             st.markdown("---")
             
