@@ -98,7 +98,7 @@ init_db()
 
 # --- FUNÇÕES DE REGRAS ---
 def get_regras():
-    df = conn.query('SELECT descricao, valor FROM regras')
+    df = conn.query('SELECT descricao, valor FROM regras', ttl=0)
     res = list(df.itertuples(index=False, name=None))
     def sort_key(item):
         texto = item[0]
@@ -124,11 +124,11 @@ def delete_regra(descricao):
 
 # --- FUNÇÕES DE JOGADORES ---
 def get_jogadores():
-    df = conn.query('SELECT DISTINCT nome FROM status')
+    df = conn.query('SELECT DISTINCT nome FROM status', ttl=0)
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento FROM status WHERE nome = :n', params={"n": jogador})
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento FROM status WHERE nome = :n', params={"n": jogador}, ttl=0)
     if not df.empty:
         return tuple(df.iloc[0])
     return None
@@ -160,10 +160,10 @@ def add_historico(jogador, infracao, valor, tipo='falta'):
         s.commit()
 
 def get_historico(jogador):
-    return conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id DESC', params={"n": jogador})
+    return conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id DESC', params={"n": jogador}, ttl=0)
 
 def get_historico_admin(jogador):
-    return conn.query('SELECT id, data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id DESC', params={"n": jogador})
+    return conn.query('SELECT id, data, infracao, desconto, tipo FROM historico WHERE nome = :n ORDER BY id DESC', params={"n": jogador}, ttl=0)
 
 def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
@@ -194,7 +194,7 @@ def add_trofeu(jogador, nivel, saldo):
         s.commit()
 
 def get_trofeus(jogador):
-    return conn.query('SELECT data as Data, nivel as Nível, saldo as Recompensa FROM trofeus WHERE nome = :n ORDER BY id DESC', params={"n": jogador})
+    return conn.query('SELECT data as Data, nivel as Nível, saldo as Recompensa FROM trofeus WHERE nome = :n ORDER BY id DESC', params={"n": jogador}, ttl=0)
 
 def render_header(nome_jogador, estilo_avatar):
     arquivo_foto = f"{nome_jogador.lower()}.jpg"
