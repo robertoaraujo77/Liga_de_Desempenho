@@ -275,19 +275,19 @@ def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, falta
     texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else ""
 
     st.markdown(f'''
-        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
-                <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
-                    <div style="font-size: 32px; font-weight: 900; line-height: 1;">{ovr}</div>
-                    <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">OVR</div>
-                </div>
-                <img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
-                <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
-                <div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
-                {texto_titulos}
-            </div>
+<div style="display: flex; justify-content: center; margin-bottom: 25px;">
+    <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
+            <div style="font-size: 32px; font-weight: 900; line-height: 1;">{ovr}</div>
+            <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">OVR</div>
         </div>
-    ''', unsafe_allow_html=True)
+        <img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+        <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
+        <div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
+        {texto_titulos}
+    </div>
+</div>
+''', unsafe_allow_html=True)
 
 
 # ==========================================
@@ -435,6 +435,8 @@ if jogador_selecionado:
                 st.subheader("🌟 Histórico de Temporadas")
                 df_trofeus = get_trofeus(jogador_selecionado)
                 if not df_trofeus.empty:
+                    # Forçando o nome das colunas antes de aplicar a formatação do dinheiro
+                    df_trofeus.columns = ['Data', 'Divisão', 'Recompensa']
                     df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
                     st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
                 else:
