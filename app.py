@@ -18,7 +18,7 @@ st.set_page_config(page_title="Liga de Desempenho", page_icon="⚽", layout="cen
 
 # Injeção de Manifesto para o PWABuilder
 st.markdown("""
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="app/static/manifest.json">
     <style>
     @media (max-width: 768px) {
         h1 { font-size: 1.6rem !important; }
