@@ -55,6 +55,10 @@ def init_db():
         # Tabela de Usuários (Contas)
         s.execute(text('CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT)'))
         
+        # Nova coluna para o PIN da Arbitragem
+        res_pin = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='usuarios' AND column_name='pin'")).fetchone()
+        if not res_pin: s.execute(text("ALTER TABLE usuarios ADD COLUMN pin TEXT"))
+        
         # Tabelas principais com coluna 'usuario'
         s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT, base_inicial REAL, incremento REAL, teto_maximo REAL, titulos INTEGER, limite_faltas REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT)'''))
@@ -65,11 +69,12 @@ def init_db():
 init_db()
 
 # --- LÓGICA DE AUTENTICAÇÃO ---
-def criar_conta(user, pw):
+def criar_conta(user, pw, pin):
     user_limpo = str(user).strip().lower()
     try:
         with conn.session as s:
-            s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), {"u": user_limpo, "p": hash_password(pw)})
+            s.execute(text('INSERT INTO usuarios (username, password, pin) VALUES (:u, :p, :pin)'), 
+                      {"u": user_limpo, "p": hash_password(pw), "pin": hash_password(pin)})
             regras_padrao = [
                 {"u": user_limpo, "d": "🚿 Não seca o banheiro", "v": 1.0},
                 {"u": user_limpo, "d": "🥱 Acordar reclamando", "v": 1.0},
@@ -86,6 +91,17 @@ def verificar_login(user, pw):
     res = conn.query('SELECT password FROM usuarios WHERE username = :u', params={"u": user_limpo}, ttl=0)
     if not res.empty and res.iloc[0]['password'] == hash_password(pw):
         return True
+    return False
+
+def verificar_pin(user, pin_digitado):
+    if not pin_digitado: return False
+    res = conn.query('SELECT pin FROM usuarios WHERE username = :u', params={"u": user}, ttl=0)
+    if not res.empty:
+        pin_banco = res.iloc[0]['pin']
+        # Fallback para a conta do Roberto que foi criada antes do PIN existir
+        if pd.isna(pin_banco) or pin_banco is None:
+            return pin_digitado == "2811"
+        return pin_banco == hash_password(pin_digitado)
     return False
 
 # ==========================================
@@ -111,12 +127,14 @@ if not st.session_state.autenticado:
             
     with menu_auth[1]:
         u_new = st.text_input("Escolha um Usuário (E-mail):", key="u_new")
-        p_new = st.text_input("Crie uma Senha:", type="password", key="p_new")
+        p_new = st.text_input("Crie uma Senha Principal:", type="password", key="p_new")
+        pin_new = st.text_input("Crie um PIN p/ Arbitragem (4 dígitos):", type="password", max_chars=4, key="pin_new", placeholder="Ex: 1234")
         if st.button("Criar Minha Liga", use_container_width=True):
-            if u_new and p_new:
-                if criar_conta(u_new, p_new):
+            if u_new and p_new and pin_new:
+                if criar_conta(u_new, p_new, pin_new):
                     st.success("Conta criada! Agora faça o login.")
                 else: st.error("Este usuário já existe.")
+            else: st.error("Preencha todos os campos para criar a conta.")
     st.stop()
 
 # ==========================================
@@ -486,11 +504,11 @@ if jogador_selecionado: st.markdown(f"*(Controlando o perfil: **{jogador_selecio
 
 col_senha, col_btn_senha = st.columns([3, 1])
 with col_senha:
-    senha = st.text_input("Senha Arbitragem", type="password", label_visibility="collapsed", placeholder="Digite a senha (Padrão 2811)...")
+    senha = st.text_input("Senha Arbitragem", type="password", label_visibility="collapsed", placeholder="Digite seu PIN...")
 with col_btn_senha:
     st.button("🔓 Entrar", use_container_width=True)
 
-if senha == "2811":
+if verificar_pin(USER_LOGADO, senha):
     if not jogador_selecionado:
         st.markdown("**➕ Cadastrar Primeiro Jogador**")
         novo_nome = st.text_input("Nome:", placeholder="Ex: Davi")
@@ -710,4 +728,4 @@ if senha == "2811":
                         st.success(f"{jogador_excluir} removido.")
                         time.sleep(1.5)
                         st.rerun()
-elif senha != "": st.error("Senha Incorreta.")
+elif senha != "": st.error("PIN Incorreto.")
