@@ -52,14 +52,10 @@ conn = st.connection("postgresql", type="sql")
 
 def init_db():
     with conn.session as s:
-        # Tabela de Usuários (Contas)
         s.execute(text('CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT)'))
-        
-        # Nova coluna para o PIN da Arbitragem
         res_pin = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='usuarios' AND column_name='pin'")).fetchone()
         if not res_pin: s.execute(text("ALTER TABLE usuarios ADD COLUMN pin TEXT"))
         
-        # Tabelas principais com coluna 'usuario'
         s.execute(text('''CREATE TABLE IF NOT EXISTS status (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, nivel TEXT, base REAL, saldo REAL, faltas REAL, aguardando_resgate INTEGER DEFAULT 0, avatar TEXT, base_inicial REAL, incremento REAL, teto_maximo REAL, titulos INTEGER, limite_faltas REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
@@ -98,7 +94,6 @@ def verificar_pin(user, pin_digitado):
     res = conn.query('SELECT pin FROM usuarios WHERE username = :u', params={"u": user}, ttl=0)
     if not res.empty:
         pin_banco = res.iloc[0]['pin']
-        # Fallback para a conta do Roberto que foi criada antes do PIN existir
         if pd.isna(pin_banco) or pin_banco is None:
             return pin_digitado == "2811"
         return pin_banco == hash_password(pin_digitado)
@@ -147,7 +142,60 @@ if st.sidebar.button("Sair"):
     st.session_state.autenticado = False
     st.rerun()
 
-# --- FUNÇÕES COM FILTRO DE USUÁRIO ---
+# ==========================================
+# PAINEL DO DONO (GOD MODE) - EXCLUSIVO
+# ==========================================
+is_admin = (USER_LOGADO == 'robertojr1990@gmail.com')
+modo_admin = False
+
+if is_admin:
+    st.sidebar.markdown("---")
+    modo_admin = st.sidebar.toggle("👑 Painel do Dono")
+
+if modo_admin:
+    st.title("👑 Painel de Administração Global")
+    st.info("Bem-vindo ao God Mode! Aqui você tem o controle total da plataforma.")
+    
+    tab_admin1, tab_admin2 = st.tabs(["👥 Contas e Jogadores", "⚙️ Gerenciamento"])
+    
+    with tab_admin1:
+        st.subheader("Contas Cadastradas")
+        df_users = conn.query('SELECT id, username as Email FROM usuarios ORDER BY id DESC', ttl=0)
+        st.dataframe(df_users, use_container_width=True, hide_index=True)
+        
+        st.subheader("Todos os Jogadores da Plataforma")
+        df_all_players = conn.query('SELECT usuario as Responsável, nome as Atleta, nivel as Divisão, saldo as Saldo, titulos as Títulos FROM status ORDER BY id DESC', ttl=0)
+        if not df_all_players.empty:
+            df_all_players['Saldo'] = df_all_players['Saldo'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
+            st.dataframe(df_all_players, use_container_width=True, hide_index=True)
+        else:
+            st.write("Nenhum jogador cadastrado ainda.")
+        
+    with tab_admin2:
+        st.markdown("**🚨 Excluir uma Conta Inteira**")
+        st.warning("Isso apagará a conta do usuário e todos os jogadores, históricos e regras atrelados a ele.")
+        if not df_users.empty:
+            usuario_del = st.selectbox("Selecione o E-mail para excluir:", df_users['Email'].tolist())
+            if st.button("Excluir Conta Definitivamente"):
+                if usuario_del == 'robertojr1990@gmail.com':
+                    st.error("Você não pode excluir a sua própria conta de Dono!")
+                else:
+                    with conn.session as s:
+                        s.execute(text("DELETE FROM usuarios WHERE username=:u"), {"u": usuario_del})
+                        s.execute(text("DELETE FROM status WHERE usuario=:u"), {"u": usuario_del})
+                        s.execute(text("DELETE FROM historico WHERE usuario=:u"), {"u": usuario_del})
+                        s.execute(text("DELETE FROM trofeus WHERE usuario=:u"), {"u": usuario_del})
+                        s.execute(text("DELETE FROM regras WHERE usuario=:u"), {"u": usuario_del})
+                        s.commit()
+                    st.success(f"Conta {usuario_del} excluída com sucesso.")
+                    time.sleep(2)
+                    st.rerun()
+    
+    # Se o Modo Admin estiver ligado, o restante do app não carrega para evitar poluição visual
+    st.stop()
+
+
+# --- FUNÇÕES COM FILTRO DE USUÁRIO (FAMÍLIAS) ---
 def get_regras():
     df = conn.query('SELECT descricao, valor FROM regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=0)
     res = list(df.itertuples(index=False, name=None))
