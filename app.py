@@ -100,7 +100,7 @@ def verificar_pin(user, pin_digitado):
     return False
 
 # ==========================================
-# TELA DE ACESSO (LOGIN/CADASTRO)
+# TELA DE ACESSO (LOGIN/CADASTRO/ONBOARDING)
 # ==========================================
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
@@ -108,7 +108,7 @@ if 'autenticado' not in st.session_state:
 
 if not st.session_state.autenticado:
     st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho</h1>", unsafe_allow_html=True)
-    menu_auth = st.tabs(["Acessar Liga", "Criar Nova Conta"])
+    menu_auth = st.tabs(["Acessar Liga", "Criar Nova Conta", "📖 Como Funciona?"])
     
     with menu_auth[0]:
         u_login = st.text_input("Usuário (E-mail):", key="u_login")
@@ -127,9 +127,22 @@ if not st.session_state.autenticado:
         if st.button("Criar Minha Liga", use_container_width=True):
             if u_new and p_new and pin_new:
                 if criar_conta(u_new, p_new, pin_new):
-                    st.success("Conta criada! Agora faça o login.")
+                    st.success("Conta criada! Agora faça o login na aba 'Acessar Liga'.")
                 else: st.error("Este usuário já existe.")
             else: st.error("Preencha todos os campos para criar a conta.")
+            
+    with menu_auth[2]:
+        st.subheader("Transforme a mesada em um esporte! 🎮")
+        st.write("A Liga de Desempenho é uma plataforma de gamificação familiar inspirada no Ultimate Team do EA FC. Substitua as cobranças chatas por um campeonato motivador.")
+        st.markdown("""
+        **1️⃣ O Contrato Inicial:** Você cadastra a criança, define uma mesada base e um teto máximo que você pode pagar. O sistema cria as 'Divisões' automaticamente.
+        **2️⃣ A Cartinha e o OVR 99:** A criança ganha um Card de jogador. Ela começa o mês perfeita (OVR 99). Se ajudar em casa, o saldo sobe. Se desobedecer as regras da casa, você aplica Faltas, o saldo cai e a nota OVR diminui!
+        **3️⃣ Subida de Divisão:** Se a criança terminar o mês sem estourar o limite de faltas, ela 'Sobe de Divisão' (Ex: Da Série Prata para a Série Ouro) e garante um aumento na mesada.
+        **4️⃣ A Arbitragem:** Só os pais têm acesso à Área da Arbitragem via PIN, onde aplicam os bônus, faltas e fecham o mês.
+        
+        *Crie sua conta agora e escale seu primeiro jogador!*
+        """)
+        
     st.stop()
 
 # ==========================================
@@ -176,23 +189,19 @@ if modo_admin:
         st.dataframe(df_users, use_container_width=True, hide_index=True)
         
         st.subheader("Todos os Jogadores da Plataforma")
-        # Puxamos a base e o teto para calcular a divisão real na tabela
         df_all_players = conn.query('SELECT usuario, nome, nivel, saldo, titulos, base_inicial, incremento, teto_maximo, base FROM status ORDER BY id DESC', ttl=0)
         
         if not df_all_players.empty:
-            # Função para calcular a divisão real caso esteja "Calculando..."
             def calc_divisao_admin(row):
                 if row['nivel'] == 'Calculando...':
                     try:
                         divs, div_atual, idx = get_info_campeonato(row['base_inicial'], row['incremento'], row['teto_maximo'], row['base'])
                         return div_atual['nome']
-                    except:
-                        return row['nivel']
+                    except: return row['nivel']
                 return row['nivel']
                 
             df_all_players['Divisão Real'] = df_all_players.apply(calc_divisao_admin, axis=1)
             
-            # Formata e limpa a tabela para exibição
             df_view = df_all_players[['usuario', 'nome', 'Divisão Real', 'saldo', 'titulos']].copy()
             df_view.columns = ['Responsável', 'Atleta', 'Divisão', 'Saldo', 'Títulos']
             df_view['Saldo'] = df_view['Saldo'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
@@ -232,8 +241,8 @@ if modo_admin:
                     st.success(f"Conta {usuario_del} excluída com sucesso.")
                     time.sleep(2)
                     st.rerun()
-    
     st.stop()
+
 
 # --- FUNÇÕES COM FILTRO DE USUÁRIO (FAMÍLIAS) ---
 def get_regras():
@@ -464,7 +473,7 @@ if len(jogadores_ativos) > 1:
 elif len(jogadores_ativos) == 1:
     jogador_selecionado = jogadores_ativos[0]
 else:
-    st.info("👋 **Bem-vindo à Liga!** O sistema está vazio. Acesse a Área da Arbitragem para cadastrar o primeiro perfil.")
+    st.info("👋 **Bem-vindo à Liga!** Você ainda não tem jogadores. Desça até a **Área da Arbitragem**, digite seu PIN e escale seu primeiro Atleta!")
 
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
