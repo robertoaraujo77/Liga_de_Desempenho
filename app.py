@@ -138,9 +138,19 @@ if not st.session_state.autenticado:
 USER_LOGADO = st.session_state.usuario
 
 st.sidebar.write(f"Logado como:\n**{USER_LOGADO}**")
-if st.sidebar.button("Sair"):
-    st.session_state.autenticado = False
-    st.rerun()
+
+# Botão especial se o Admin estiver dentro da conta de um cliente
+if st.session_state.get('is_admin_impersonating', False):
+    st.sidebar.markdown("---")
+    st.sidebar.warning("🕵️ Você está acessando a conta de um cliente.")
+    if st.sidebar.button("🔙 Voltar ao Painel Admin", use_container_width=True):
+        st.session_state.usuario = 'robertojr1990@gmail.com'
+        st.session_state.is_admin_impersonating = False
+        st.rerun()
+else:
+    if st.sidebar.button("Sair"):
+        st.session_state.autenticado = False
+        st.rerun()
 
 # ==========================================
 # PAINEL DO DONO (GOD MODE) - EXCLUSIVO
@@ -160,28 +170,54 @@ if modo_admin:
     
     with tab_admin1:
         st.subheader("Contas Cadastradas")
-        # Busca no banco sem o 'as Email'
         df_users = conn.query('SELECT id, username FROM usuarios ORDER BY id DESC', ttl=0)
         if not df_users.empty:
-            # Força o nome das colunas maiúsculas no Pandas
             df_users.columns = ['ID', 'Email']
         st.dataframe(df_users, use_container_width=True, hide_index=True)
         
         st.subheader("Todos os Jogadores da Plataforma")
-        df_all_players = conn.query('SELECT usuario, nome, nivel, saldo, titulos FROM status ORDER BY id DESC', ttl=0)
+        # Puxamos a base e o teto para calcular a divisão real na tabela
+        df_all_players = conn.query('SELECT usuario, nome, nivel, saldo, titulos, base_inicial, incremento, teto_maximo, base FROM status ORDER BY id DESC', ttl=0)
+        
         if not df_all_players.empty:
-            df_all_players.columns = ['Responsável', 'Atleta', 'Divisão', 'Saldo', 'Títulos']
-            df_all_players['Saldo'] = df_all_players['Saldo'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
-            st.dataframe(df_all_players, use_container_width=True, hide_index=True)
+            # Função para calcular a divisão real caso esteja "Calculando..."
+            def calc_divisao_admin(row):
+                if row['nivel'] == 'Calculando...':
+                    try:
+                        divs, div_atual, idx = get_info_campeonato(row['base_inicial'], row['incremento'], row['teto_maximo'], row['base'])
+                        return div_atual['nome']
+                    except:
+                        return row['nivel']
+                return row['nivel']
+                
+            df_all_players['Divisão Real'] = df_all_players.apply(calc_divisao_admin, axis=1)
+            
+            # Formata e limpa a tabela para exibição
+            df_view = df_all_players[['usuario', 'nome', 'Divisão Real', 'saldo', 'titulos']].copy()
+            df_view.columns = ['Responsável', 'Atleta', 'Divisão', 'Saldo', 'Títulos']
+            df_view['Saldo'] = df_view['Saldo'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
         else:
             st.write("Nenhum jogador cadastrado ainda.")
         
     with tab_admin2:
-        st.markdown("**🚨 Excluir uma Conta Inteira**")
-        st.warning("Isso apagará a conta do usuário e todos os jogadores, históricos e regras atrelados a ele.")
+        st.markdown("**🕵️ Suporte ao Cliente (Acessar Conta)**")
+        st.info("Entre na conta de uma família para corrigir fotos, nomes ou contratos usando as ferramentas deles.")
         if not df_users.empty:
-            # Agora ele acha a coluna 'Email' com E maiúsculo sem dar erro
-            usuario_del = st.selectbox("Selecione o E-mail para excluir:", df_users['Email'].tolist())
+            cliente_alvo = st.selectbox("Escolha a conta para acessar:", df_users['Email'].tolist())
+            if st.button("🚪 Logar como este Cliente", type="primary"):
+                if cliente_alvo == 'robertojr1990@gmail.com':
+                    st.warning("Você já está na sua própria conta!")
+                else:
+                    st.session_state.usuario = cliente_alvo
+                    st.session_state.is_admin_impersonating = True
+                    st.rerun()
+
+        st.markdown("---")
+        st.markdown("**🚨 Excluir uma Conta Inteira**")
+        st.warning("Isso apagará a conta do usuário e todos os jogadores atrelados a ele.")
+        if not df_users.empty:
+            usuario_del = st.selectbox("Selecione o E-mail para excluir:", df_users['Email'].tolist(), key="del_user_sel")
             if st.button("Excluir Conta Definitivamente"):
                 if usuario_del == 'robertojr1990@gmail.com':
                     st.error("Você não pode excluir a sua própria conta de Dono!")
