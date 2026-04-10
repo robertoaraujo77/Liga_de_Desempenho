@@ -120,7 +120,7 @@ if not st.session_state.autenticado:
         if st.button("Entrar em Campo", use_container_width=True):
             if verificar_login(u_login, p_login):
                 st.session_state.autenticado = True
-                st.session_state.usuario = u_login
+                st.session_state.usuario = str(u_login).strip().lower()
                 st.rerun()
             else: st.error("Usuário ou senha incorretos.")
             
