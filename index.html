@@ -2,17 +2,63 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Liga de Desempenho</title>
+    
     <link rel="manifest" href="static/manifest.json">
+    
     <style>
-        body { background-color: #0e1117; color: #ffffff; font-family: Arial, sans-serif; text-align: center; padding-top: 100px; }
-        .btn { background-color: #1488cc; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; display: inline-block; margin-top: 20px;}
+        body { 
+            background-color: #0e1117; 
+            color: #ffffff; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh; /* Usa 100% da altura da tela */
+            text-align: center;
+        }
+        .logo {
+            width: 160px; /* Ícone bem maior */
+            border-radius: 30px; /* Bordas arredondadas estilo iOS/Android */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); /* Sombra elegante */
+            margin-bottom: 25px;
+        }
+        h1 {
+            font-size: 28px;
+            margin: 0 0 10px 0;
+        }
+        p {
+            font-size: 16px;
+            color: #a0aabf;
+            margin-bottom: 40px;
+            padding: 0 30px;
+            line-height: 1.5;
+        }
+        .btn { 
+            background: linear-gradient(135deg, #1488cc 0%, #2b32b2 100%); 
+            color: white; 
+            padding: 18px 40px; 
+            text-decoration: none; 
+            border-radius: 50px; /* Botão em formato de pílula */
+            font-weight: 900; 
+            font-size: 18px; 
+            display: inline-block;
+            box-shadow: 0 8px 20px rgba(20, 136, 204, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
-    <img src="static/icon-192.png" width="150" style="border-radius: 20px;">
+    <img src="static/icon-512.png" alt="Ícone Liga de Desempenho" class="logo">
+    
     <h1>⚽ Liga de Desempenho</h1>
-    <p></p>
-    <a href="https://ligadedesempenho.streamlit.app/" class="btn">Acessar a Liga de Desempennho</a>
+    <p>O servidor oficial da sua liga está ativo e pronto para o jogo.</p>
+    
+    <a href="https://ligadedesempenho.streamlit.app/" class="btn">Entrar em Campo</a>
 </body>
 </html>
