@@ -17,9 +17,8 @@ import hashlib
 st.set_page_config(page_title="Liga de Desempenho", page_icon="⚽", layout="centered")
 
 # Injeção de Manifesto para o PWABuilder
-# Injeção de Manifesto para o PWABuilder
 st.markdown("""
-    <link rel="manifest" href="./static/manifest.json">
+    <link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
     <style>
     @media (max-width: 768px) {
         h1 { font-size: 1.6rem !important; }
