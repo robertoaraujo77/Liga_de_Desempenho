@@ -1,6 +1,6 @@
 {
-  "short_name": "LIGA",
-  "name": "Liga de Desempenho",
+  "short_name": "Streamlit",
+  "name": "Streamlit",
   "icons": [
     {
       "src": "favicon_512.png",
@@ -8,7 +8,7 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": "/",
+  "start_url": "https://ligadedesempenho.streamlit.app/",
   "display": "standalone",
   "theme_color": "#ffffff",
   "background_color": "#ffffff"
