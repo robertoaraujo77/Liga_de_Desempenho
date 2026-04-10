@@ -136,10 +136,14 @@ if not st.session_state.autenticado:
         st.write("A Liga de Desempenho é uma plataforma de gamificação familiar inspirada no Ultimate Team do EA FC. Substitua as cobranças chatas por um campeonato motivador.")
         st.markdown("""
         **1️⃣ O Contrato Inicial:** Você cadastra a criança, define uma mesada base e um teto máximo que você pode pagar. O sistema cria as 'Divisões' automaticamente.
+
         **2️⃣ A Cartinha e o OVR 99:** A criança ganha um Card de jogador. Ela começa o mês perfeita (OVR 99). Se ajudar em casa, o saldo sobe. Se desobedecer as regras da casa, você aplica Faltas, o saldo cai e a nota OVR diminui!
+
         **3️⃣ Subida de Divisão:** Se a criança terminar o mês sem estourar o limite de faltas, ela 'Sobe de Divisão' (Ex: Da Série Prata para a Série Ouro) e garante um aumento na mesada.
+
         **4️⃣ A Arbitragem:** Só os pais têm acesso à Área da Arbitragem via PIN, onde aplicam os bônus, faltas e fecham o mês.
         
+        ---
         *Crie sua conta agora e escale seu primeiro jogador!*
         """)
         
