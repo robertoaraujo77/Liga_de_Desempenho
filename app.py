@@ -63,25 +63,42 @@ def init_db():
 
 init_db()
 
+# ==========================================
+# UTILITÁRIOS E SEGURANÇA (BLINDADO)
+# ==========================================
+def hash_password(password):
+    # Corta espaços sem querer na senha também
+    senha_limpa = str(password).strip()
+    return hashlib.sha256(str.encode(senha_limpa)).hexdigest()
+
+def converter_para_base64(image):
+    image = image.resize((150, 150), Image.Resampling.LANCZOS)
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
 # --- LÓGICA DE AUTENTICAÇÃO ---
 def criar_conta(user, pw):
+    user_limpo = str(user).strip().lower() # Limpa o e-mail
     try:
         with conn.session as s:
-            s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), {"u": user, "p": hash_password(pw)})
+            s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), {"u": user_limpo, "p": hash_password(pw)})
             # Insere regras padrão para o novo usuário
             regras_padrao = [
-                {"u": user, "d": "🚿 Não seca o banheiro", "v": 1.0},
-                {"u": user, "d": "🥱 Acordar reclamando", "v": 1.0},
-                {"u": user, "d": "📚 Não fazer lição", "v": 5.0},
-                {"u": user, "d": "🤬 Desobedecer (Vermelho)", "v": 20.0}
+                {"u": user_limpo, "d": "🚿 Não seca o banheiro", "v": 1.0},
+                {"u": user_limpo, "d": "🥱 Acordar reclamando", "v": 1.0},
+                {"u": user_limpo, "d": "📚 Não fazer lição", "v": 5.0},
+                {"u": user_limpo, "d": "🤬 Desobedecer (Vermelho)", "v": 20.0}
             ]
             s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), regras_padrao)
             s.commit()
         return True
-    except: return False
+    except Exception as e: 
+        return False
 
 def verificar_login(user, pw):
-    res = conn.query('SELECT password FROM usuarios WHERE username = :u', params={"u": user}, ttl=0)
+    user_limpo = str(user).strip().lower() # Limpa o e-mail na hora de logar também
+    res = conn.query('SELECT password FROM usuarios WHERE username = :u', params={"u": user_limpo}, ttl=0)
     if not res.empty and res.iloc[0]['password'] == hash_password(pw):
         return True
     return False
