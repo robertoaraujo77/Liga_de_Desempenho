@@ -8,13 +8,13 @@
   "description": "Sistema de gamificação familiar estilo EA FC.",
   "icons": [
     {
-      "src": "https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/icon-192.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/icon-512.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
