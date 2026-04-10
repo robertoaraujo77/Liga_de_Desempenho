@@ -133,15 +133,15 @@ if not st.session_state.autenticado:
             
     with menu_auth[2]:
         st.subheader("Transforme a mesada em um esporte! 🎮")
-        st.write("A Liga de Desempenho é uma plataforma de gamificação familiar inspirada no Ultimate Team do EA FC. Substitua as cobranças chatas por um campeonato motivador.")
+        st.write("A Liga de Desempenho é uma plataforma de gamificação familiar inspirada no clássico Modo Carreira dos esportes. Substitua as cobranças chatas por um campeonato motivador.")
         st.markdown("""
         **1️⃣ O Contrato Inicial:** Você cadastra a criança, define uma mesada base e um teto máximo que você pode pagar. O sistema cria as 'Divisões' automaticamente.
 
-        **2️⃣ A Cartinha e o OVR 99:** A criança ganha um Card de jogador. Ela começa o mês perfeita (OVR 99). Se ajudar em casa, o saldo sobe. Se desobedecer as regras da casa, você aplica Faltas, o saldo cai e a nota OVR diminui!
+        **2️⃣ O Card e o Score 99:** O jovem ganha um Card do Atleta. Ele começa o mês em sua melhor forma (Score 99). Se ajudar em casa, o saldo sobe. Se quebrar as regras da casa, sofre Faltas, o saldo cai e o Score diminui!
 
-        **3️⃣ Subida de Divisão:** Se a criança terminar o mês sem estourar o limite de faltas, ela 'Sobe de Divisão' (Ex: Da Série Prata para a Série Ouro) e garante um aumento na mesada.
+        **3️⃣ Subida de Divisão:** Se o atleta terminar o mês sem estourar o limite de faltas, ele 'Sobe de Divisão' (Ex: Da Série Prata para a Série Ouro) e garante um aumento na mesada.
 
-        **4️⃣ A Arbitragem:** Só os pais têm acesso à Área da Arbitragem via PIN, onde aplicam os bônus, faltas e fecham o mês.
+        **4️⃣ A Arbitragem:** Só a comissão técnica (pais) tem acesso à Área da Arbitragem via PIN, onde aplicam os bônus, faltas e fecham o mês.
         
         ---
         *Crie sua conta agora e escale seu primeiro jogador!*
@@ -363,7 +363,7 @@ def get_trofeus(jogador):
     return conn.query('SELECT data as Data, nivel as Divisão, saldo as Recompensa FROM trofeus WHERE nome = :n AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
 
 # ==========================================
-# MOTOR MATEMÁTICO E CARTINHA
+# MOTOR MATEMÁTICO E CARD DO ATLETA
 # ==========================================
 def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual):
     inc = max(incremento, 1.0)
@@ -390,17 +390,17 @@ def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual):
 
     return divisoes, div_atual, index_atual
 
-def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
+def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
     if estilo_avatar.startswith("data:image"):
         img_src = estilo_avatar
     else:
         img_src = f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
 
-    ovr = 99
+    score_val = 99
     bonus_acumulado = max(0, saldo - (base - faltas))
-    ovr -= int(faltas * 5)
-    ovr += int(bonus_acumulado * 3)
-    ovr = min(99, max(40, ovr)) 
+    score_val -= int(faltas * 5)
+    score_val += int(bonus_acumulado * 3)
+    score_val = min(99, max(40, score_val)) 
 
     bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)"
     if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
@@ -417,8 +417,8 @@ def render_carta_ea_fc(nome_jogador, estilo_avatar, div_nome, saldo, base, falta
 <div style="display: flex; justify-content: center; margin-bottom: 25px;">
     <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
         <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
-            <div style="font-size: 32px; font-weight: 900; line-height: 1;">{ovr}</div>
-            <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">OVR</div>
+            <div style="font-size: 32px; font-weight: 900; line-height: 1;">{score_val}</div>
+            <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">SCORE</div>
         </div>
         <img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
         <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
@@ -487,7 +487,7 @@ if jogador_selecionado:
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual)
         nome_divisao_exibicao = div_atual["nome"]
 
-        render_carta_ea_fc(jogador_selecionado, estilo_avatar, nome_divisao_exibicao, saldo_atual, base_atual, faltas_atual, titulos)
+        render_carta_atleta(jogador_selecionado, estilo_avatar, nome_divisao_exibicao, saldo_atual, base_atual, faltas_atual, titulos)
 
         if aguardando_resgate == 1:
             st.info(f"🚨 **Atenção {jogador_selecionado}!** O Árbitro encerrou a temporada. O placar está travado.")
