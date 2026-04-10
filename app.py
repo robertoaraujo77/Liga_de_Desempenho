@@ -164,8 +164,10 @@ if modo_admin:
         st.dataframe(df_users, use_container_width=True, hide_index=True)
         
         st.subheader("Todos os Jogadores da Plataforma")
-        df_all_players = conn.query('SELECT usuario as Responsável, nome as Atleta, nivel as Divisão, saldo as Saldo, titulos as Títulos FROM status ORDER BY id DESC', ttl=0)
+        df_all_players = conn.query('SELECT usuario, nome, nivel, saldo, titulos FROM status ORDER BY id DESC', ttl=0)
         if not df_all_players.empty:
+            # Forçamos as colunas com letras maiúsculas e acentos aqui no Pandas!
+            df_all_players.columns = ['Responsável', 'Atleta', 'Divisão', 'Saldo', 'Títulos']
             df_all_players['Saldo'] = df_all_players['Saldo'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
             st.dataframe(df_all_players, use_container_width=True, hide_index=True)
         else:
