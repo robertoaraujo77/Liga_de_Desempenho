@@ -1,23 +1,20 @@
 {
   "name": "Liga de Desempenho",
   "short_name": "Liga",
-  "start_url": "https://ligadedesempenho.streamlit.app/",
-  "display": "standalone",
+  "start_url": "/Liga_de_Desempenho/",
+  "display": "fullscreen",  <-- É ESSA LINHA QUE MUDA O JOGO
   "background_color": "#0e1117",
   "theme_color": "#1488cc",
-  "description": "O seu Modo Carreira na vida real! Cumpra as regras, suba de divisão e seja o craque da casa.",
   "icons": [
     {
       "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     }
   ]
 }
