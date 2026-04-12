@@ -1,8 +1,8 @@
 {
   "name": "Liga de Desempenho",
   "short_name": "Liga",
-  "start_url": "https://ligadedesempenho.streamlit.app",
-  "display": "fullscreen",  <-- É ESSA LINHA QUE MUDA O JOGO
+  "start_url": "/Liga_de_Desempenho/",
+  "display": "standalone",
   "background_color": "#0e1117",
   "theme_color": "#1488cc",
   "icons": [
