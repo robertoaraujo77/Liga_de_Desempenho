@@ -720,7 +720,11 @@ if jogador_selecionado:
             else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
             st.markdown("---")
 
-        aba1, aba2 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus"])
+        # ==========================================
+        # ABAS DO ATLETA E COMISSÃO (Placar, Troféus e Regras)
+        # ==========================================
+        aba1, aba2, aba3 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus", "📜 Regras do Jogo"])
+        
         with aba1:
             col1, col2 = st.columns(2)
             col1.metric("⚽ Saldo da Temporada", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
@@ -759,6 +763,29 @@ if jogador_selecionado:
                 st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
             else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
 
+        with aba3:
+            st.markdown("### 📖 Manual do Atleta")
+            st.caption("Consulte a tabela oficial para saber como faturar mais e evitar punições.")
+            
+            regras_lista = get_regras()
+            bonus_lista = get_bonus_regras()
+            
+            st.markdown("#### ⭐ Golaços (Como ganhar)")
+            if bonus_lista:
+                df_b = pd.DataFrame(list(bonus_lista.items()), columns=["Ação", "Recompensa"])
+                df_b["Recompensa"] = df_b["Recompensa"].apply(lambda x: f"+ R$ {x:.2f}".replace('.', ','))
+                st.dataframe(df_b, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum bônus cadastrado no momento.")
+                
+            st.markdown("#### 🔴 Faltas (O que evitar)")
+            if regras_lista:
+                df_r = pd.DataFrame(list(regras_lista.items()), columns=["Infração", "Multa"])
+                df_r["Multa"] = df_r["Multa"].apply(lambda x: f"- R$ {x:.2f}".replace('.', ','))
+                st.dataframe(df_r, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhuma regra de falta cadastrada.")
+
 # ==========================================
 # PAINEL DA COMISSÃO TÉCNICA (SÓ PAIS)
 # ==========================================
@@ -796,7 +823,6 @@ if TIPO_CONTA == 'pai':
                     btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
                     if btn_bonus:
                         v_bonus = bonus_dinamicos[m_bonus_sel]
-                        # NOVA REGRA: O bônus diminui a barra de multas!
                         novas_faltas = max(0.0, faltas_atual - v_bonus)
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
