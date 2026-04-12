@@ -43,6 +43,41 @@ PEDRAS = ["Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrit
 ESTILOS_AVATAR = {"🧑 Desenho Moderno": "notionists", "🤠 Aventureiro": "adventurer", "🤖 Robô": "bottts", "😎 Emoji Divertido": "fun-emoji", "🧑‍🎨 Retrato Elegante": "micah", "👾 Pixel Art": "pixel-art"}
 
 # ==========================================
+# AS NOVAS REGRAS DE OURO BALANCEADAS
+# ==========================================
+def obter_regras_padrao(usuario):
+    return [
+        {"u": usuario, "d": "🥱 Acordar reclamando", "v": 1.0},
+        {"u": usuario, "d": "👟 Deixa roupa no chão e chuteira", "v": 2.0},
+        {"u": usuario, "d": "🚽 Deixar a toalha no chão/privada", "v": 1.0},
+        {"u": usuario, "d": "💡 Deixar luz acesa", "v": 1.0},
+        {"u": usuario, "d": "🤬 Desobedecer aos pais (Cartão Vermelho)", "v": 20.0},
+        {"u": usuario, "d": "🤔 Desobediência no Treino ou Jogo", "v": 3.0},
+        {"u": usuario, "d": "📚 Não fazer lição", "v": 5.0},
+        {"u": usuario, "d": "🧼 Não ir tomar banho quando solicitado", "v": 2.0},
+        {"u": usuario, "d": "🗑️ Não levar o lixo", "v": 3.0},
+        {"u": usuario, "d": "🚿 Não seca o banheiro", "v": 1.0},
+        {"u": usuario, "d": "🚰 Não tomou água", "v": 2.0},
+        {"u": usuario, "d": "😒 Reclamar de ir aos treinos", "v": 2.0},
+        {"u": usuario, "d": "🫩 Responder os pais", "v": 3.0},
+        {"u": usuario, "d": "🥊 Brigar com o irmão", "v": 5.0},
+        {"u": usuario, "d": "🎮 Passar do limite de telas", "v": 3.0}
+    ]
+
+def obter_bonus_padrao(usuario):
+    return [
+        {"u": usuario, "d": "🍽️ Ajudou a lavar a louça", "v": 3.0},
+        {"u": usuario, "d": "🧹 Ajudou na limpeza da casa", "v": 10.0},
+        {"u": usuario, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
+        {"u": usuario, "d": "🥗 Comeu toda a salada/verdura", "v": 2.0},
+        {"u": usuario, "d": "🌟 Elogio na escola", "v": 5.0},
+        {"u": usuario, "d": "📖 Leu um livro (30 min)", "v": 5.0},
+        {"u": usuario, "d": "🏅 Atleta Disciplinado (Semana Perfeita)", "v": 15.0},
+        {"u": usuario, "d": "⚽ Destaque e Raça no Treino/Jogo", "v": 5.0},
+        {"u": usuario, "d": "😴 Foi dormir no horário sem enrolar", "v": 2.0}
+    ]
+
+# ==========================================
 # UTILITÁRIOS E SEGURANÇA E AUTO-CROP
 # ==========================================
 def hash_password(password):
@@ -86,28 +121,17 @@ def init_db():
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
         
-        # 🧹 FAXINA AUTOMÁTICA: Remove clones de Faltas (deixa apenas o mais recente)
+        # Faxina de Clones (Mantida por segurança)
         s.execute(text('''
-            DELETE FROM regras 
-            WHERE id IN (
-                SELECT id FROM (
-                    SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn 
-                    FROM regras
-                ) t WHERE t.rn > 1
+            DELETE FROM regras WHERE id IN (
+                SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn FROM regras) t WHERE t.rn > 1
             )
         '''))
-        
-        # 🧹 FAXINA AUTOMÁTICA: Remove clones de Bônus (deixa apenas o mais recente)
         s.execute(text('''
-            DELETE FROM bonus_regras 
-            WHERE id IN (
-                SELECT id FROM (
-                    SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn 
-                    FROM bonus_regras
-                ) t WHERE t.rn > 1
+            DELETE FROM bonus_regras WHERE id IN (
+                SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn FROM bonus_regras) t WHERE t.rn > 1
             )
         '''))
-
         s.commit()
 
 init_db()
@@ -117,30 +141,9 @@ def criar_conta(user, pw):
     user_limpo = str(user).strip().lower()
     try:
         with conn.session as s:
-            s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), 
-                      {"u": user_limpo, "p": hash_password(pw)})
-            
-            regras_padrao = [
-                {"u": user_limpo, "d": "🚿 Toalha molhada na cama", "v": 2.0},
-                {"u": user_limpo, "d": "🥱 Acordar reclamando", "v": 1.0},
-                {"u": user_limpo, "d": "📚 Não fazer a lição de casa", "v": 5.0},
-                {"u": user_limpo, "d": "🎮 Passou do limite de telas", "v": 3.0},
-                {"u": user_limpo, "d": "🗣️ Desrespeito com os pais", "v": 5.0},
-                {"u": user_limpo, "d": "🤬 Palavrão", "v": 3.0},
-                {"u": user_limpo, "d": "🛏️ Não arrumou o quarto", "v": 2.0},
-                {"u": user_limpo, "d": "🟥 Desobedecer (Vermelho Direto)", "v": 20.0}
-            ]
-            s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), regras_padrao)
-            
-            bonus_padrao = [
-                {"u": user_limpo, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
-                {"u": user_limpo, "d": "🍽️ Ajudou a lavar a louça", "v": 3.0},
-                {"u": user_limpo, "d": "📖 Leu um livro (30 min)", "v": 5.0},
-                {"u": user_limpo, "d": "🧹 Ajudou na limpeza da casa", "v": 5.0},
-                {"u": user_limpo, "d": "🌟 Elogio na escola", "v": 5.0},
-                {"u": user_limpo, "d": "🥗 Comeu toda a salada/verdura", "v": 2.0}
-            ]
-            s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), bonus_padrao)
+            s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), {"u": user_limpo, "p": hash_password(pw)})
+            s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_regras_padrao(user_limpo))
+            s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(user_limpo))
             s.commit()
         return True
     except Exception: return False
@@ -187,18 +190,10 @@ def delete_regra(descricao):
 def get_bonus_regras():
     df = conn.query('SELECT descricao, valor FROM bonus_regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=0)
     if df.empty:
-        bonus_padrao = [
-            {"u": USER_LOGADO, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
-            {"u": USER_LOGADO, "d": "🍽️ Ajudou a lavar a louça", "v": 3.0},
-            {"u": USER_LOGADO, "d": "📖 Leu um livro (30 min)", "v": 5.0},
-            {"u": USER_LOGADO, "d": "🧹 Ajudou na limpeza da casa", "v": 5.0},
-            {"u": USER_LOGADO, "d": "🌟 Elogio na escola", "v": 5.0},
-            {"u": USER_LOGADO, "d": "🥗 Comeu toda a salada/verdura", "v": 2.0}
-        ]
         with conn.session as s:
-            s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), bonus_padrao)
+            s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(USER_LOGADO))
             s.commit()
-        df = pd.DataFrame(bonus_padrao).rename(columns={"d": "descricao", "v": "valor"})
+        df = pd.DataFrame(obter_bonus_padrao(USER_LOGADO)).rename(columns={"d": "descricao", "v": "valor"})
 
     res = list(df[['descricao', 'valor']].itertuples(index=False, name=None))
     def sort_key(item):
@@ -567,6 +562,19 @@ if TIPO_CONTA == 'pai':
             st.session_state.impersonate = nova_conta
             st.rerun()
 
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("🔄 **RESET DE REGRAS**")
+        if st.sidebar.button("Carregar Novas Regras Padrão", help="Apaga as regras atuais e carrega o novo balanço de valores.", use_container_width=True):
+            with conn.session as s:
+                s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_regras_padrao(st.session_state.impersonate))
+                s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(st.session_state.impersonate))
+                s.commit()
+            st.success("Regras atualizadas com sucesso!")
+            time.sleep(1)
+            st.rerun()
+
         if st.session_state.impersonate != SUPER_ADMIN:
             st.sidebar.markdown("---")
             st.sidebar.markdown("🚨 **ZONA DE PERIGO**")
@@ -757,7 +765,6 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
-            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
             df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
             timeline = [base_atual]
             curr = base_atual
@@ -845,7 +852,6 @@ if TIPO_CONTA == 'pai':
                     btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
                     if btn_bonus:
                         v_bonus = bonus_dinamicos[m_bonus_sel]
-                        # NOVA REGRA: O bônus diminui a barra de multas!
                         novas_faltas = max(0.0, faltas_atual - v_bonus)
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
