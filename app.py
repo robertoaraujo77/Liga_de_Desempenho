@@ -572,7 +572,6 @@ else:
     st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
 
 st.sidebar.markdown("---")
-# NOVO BOTÃO DE ATUALIZAÇÃO RÁPIDA
 if st.sidebar.button("🔄 Atualizar Dados", use_container_width=True):
     st.rerun()
 
@@ -797,9 +796,11 @@ if TIPO_CONTA == 'pai':
                     btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
                     if btn_bonus:
                         v_bonus = bonus_dinamicos[m_bonus_sel]
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                        # NOVA REGRA: O bônus diminui a barra de multas!
+                        novas_faltas = max(0.0, faltas_atual - v_bonus)
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
-                        add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}).")
+                        add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}). A barra de faltas diminuiu!")
                         st.rerun()
                 else:
                     st.warning("Crie bônus na aba 'Regras e Bônus' primeiro.")
