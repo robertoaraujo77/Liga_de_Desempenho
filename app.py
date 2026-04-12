@@ -74,7 +74,8 @@ def obter_bonus_padrao(usuario):
         {"u": usuario, "d": "📖 Leu um livro (30 min)", "v": 5.0},
         {"u": usuario, "d": "🏅 Atleta Disciplinado (Semana Perfeita)", "v": 15.0},
         {"u": usuario, "d": "⚽ Destaque e Raça no Treino/Jogo", "v": 5.0},
-        {"u": usuario, "d": "😴 Foi dormir no horário sem enrolar", "v": 2.0}
+        {"u": usuario, "d": "😴 Foi dormir no horário sem enrolar", "v": 2.0},
+        {"u": usuario, "d": "🥅 Fez gol no jogo", "v": 2.0}
     ]
 
 # ==========================================
