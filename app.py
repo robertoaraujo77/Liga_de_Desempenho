@@ -108,7 +108,7 @@ if 'autenticado' not in st.session_state:
     st.session_state.jogador_atual = None
 
 if not st.session_state.autenticado:
-    st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho ⚽</h1>", unsafe_allow_html=True)
     menu_auth = st.tabs(["👔 Comissão Técnica", "⚽ Vestiário", "Criar Liga"])
     
     with menu_auth[0]:
