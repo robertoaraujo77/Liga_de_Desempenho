@@ -60,7 +60,8 @@
         // 2. REGISTRO DO SERVICE WORKER (Aciona o Banner de Instalação!)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
+                // O ./ garante que o GitHub ache o arquivo na pasta Liga_de_Desempenho
+                navigator.serviceWorker.register('./sw.js')
                     .then(reg => console.log('Service Worker registrado!', reg))
                     .catch(err => console.log('Erro no Service Worker:', err));
             });
