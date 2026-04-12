@@ -250,12 +250,18 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
         s.execute(text('DELETE FROM historico WHERE id = :id AND usuario = :u'), {"id": int(id_item), "u": USER_LOGADO})
         s.commit()
     nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval = get_status(jogador)
+    
+    # Atualiza a lógica para devolver o saldo corretamente dependendo do tipo da exclusão
     if tipo_item == 'falta':
         novo_saldo = saldo + float(valor_item)
         novas_faltas = max(0.0, faltas - float(valor_item))
-    else: 
+    elif tipo_item == 'compra':
+        novo_saldo = saldo + float(valor_item)
+        novas_faltas = faltas
+    else: # bonus
         novo_saldo = saldo - float(valor_item)
         novas_faltas = faltas
+        
     update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite)
 
 def clear_historico(jogador):
@@ -538,6 +544,24 @@ if TIPO_CONTA == 'pai':
                         add_historico(jogador_selecionado, f"⭐ {m_bonus}", v_bonus, 'bonus')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
+                
+            # --- NOVA FUNCIONALIDADE: RESGATE DE META ---
+            if meta_val > 0 and meta_desc:
+                st.markdown("---")
+                st.markdown(f"**🛍️ Efetuar Compra da Meta: {meta_desc}**")
+                if saldo_atual >= meta_val:
+                    if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f})", type="primary", use_container_width=True):
+                        # Abate o saldo mas mantém as faltas intactas
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - meta_val, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                        # Limpa o texto da meta para abrir espaço para o próximo objetivo
+                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False)
+                        # Registra no histórico
+                        add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
+                        st.success("Compra efetuada! O saldo foi abatido e a meta liberada para um novo objetivo.")
+                        time.sleep(2)
+                        st.rerun()
+                else:
+                    st.info(f"O atleta precisa de mais R$ {(meta_val - saldo_atual):.2f} para conseguir comprar a meta.")
                     
             st.markdown("---")
             st.markdown("**🗑️ Excluir Lançamento Errado**")
