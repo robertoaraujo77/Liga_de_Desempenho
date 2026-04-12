@@ -50,7 +50,6 @@ def hash_password(password):
     return hashlib.sha256(str.encode(senha_limpa)).hexdigest()
 
 def converter_para_base64(image):
-    # Faz o Auto-Crop (Recorte Centralizado Quadrado)
     width, height = image.size
     min_dim = min(width, height)
     left = (width - min_dim)/2
@@ -58,8 +57,6 @@ def converter_para_base64(image):
     right = (width + min_dim)/2
     bottom = (height + min_dim)/2
     image = image.crop((left, top, right, bottom))
-    
-    # Redimensiona e salva
     image = image.resize((150, 150), Image.Resampling.LANCZOS)
     if image.mode != 'RGB':
         image = image.convert('RGB')
@@ -87,6 +84,7 @@ def init_db():
         if 'pin_jogador' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN pin_jogador TEXT"))
         if 'meta_descricao' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_descricao TEXT"))
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
+        if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
         
         s.commit()
 
@@ -121,7 +119,6 @@ def criar_conta(user, pw):
                 {"u": user_limpo, "d": "🥗 Comeu toda a salada/verdura", "v": 2.0}
             ]
             s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), bonus_padrao)
-            
             s.commit()
         return True
     except Exception: return False
@@ -225,29 +222,29 @@ def get_jogadores():
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
     if not df.empty:
         row = df.iloc[0].to_dict()
         return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
-                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0))
+                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0), float(row['poupanca'] if row['poupanca'] else 0.0))
     return None
 
-def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo, limite_faltas):
+def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo, limite_faltas, poupanca):
     with conn.session as s:
-        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av, titulos=:t, teto_maximo=:tm, limite_faltas=:lf WHERE LOWER(nome)=LOWER(:nome) AND usuario=:u'), 
-                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas), "u": USER_LOGADO})
+        s.execute(text('UPDATE status SET nivel=:n, base=:b, saldo=:s, faltas=:f, aguardando_resgate=:ag, avatar=:av, titulos=:t, teto_maximo=:tm, limite_faltas=:lf, poupanca=:p WHERE LOWER(nome)=LOWER(:nome) AND usuario=:u'), 
+                  {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas), "p": float(poupanca), "u": USER_LOGADO})
         s.commit()
 
 def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val):
     with conn.session as s:
-        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval)'), 
+        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval, 0.0)'), 
                   {"u": USER_LOGADO, "n": nome, "niv": "Em Avaliação 🕵️‍♂️", "b": 0.0, "s": 0.0, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
         s.commit()
 
-def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin):
+def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin, nova_poupanca):
     with conn.session as s:
-        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, meta_descricao=:mdesc, meta_valor=:mval'
-        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "mdesc": meta_desc, "mval": float(meta_val), "na": nome_antigo, "u": USER_LOGADO}
+        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, meta_descricao=:mdesc, meta_valor=:mval, poupanca=:np'
+        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "mdesc": meta_desc, "mval": float(meta_val), "np": float(nova_poupanca), "na": nome_antigo, "u": USER_LOGADO}
         if change_pin:
             query += ', pin_jogador=:pin'
             params['pin'] = hash_password(pin_jogador)
@@ -287,7 +284,7 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
         s.commit()
     dados_jogador = get_status(jogador)
     if dados_jogador:
-        nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval = dados_jogador
+        nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, poupanca = dados_jogador
         if tipo_item == 'falta':
             novo_saldo = saldo + float(valor_item)
             novas_faltas = max(0.0, faltas - float(valor_item))
@@ -297,7 +294,7 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
         else: 
             novo_saldo = saldo - float(valor_item)
             novas_faltas = faltas
-        update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite)
+        update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite, poupanca)
 
 def clear_historico(jogador):
     with conn.session as s:
@@ -367,7 +364,7 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else "<div style='display:none;'></div>"
 
     st.markdown(f'''
-<div style="display: flex; justify-content: center; margin-bottom: 25px;">
+<div style="display: flex; justify-content: center; margin-bottom: 15px;">
     <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
         <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
             <div style="font-size: 32px; font-weight: 900; line-height: 1;">{score_val}</div>
@@ -518,7 +515,6 @@ if not st.session_state.autenticado:
 # ==========================================
 # ÁREA RESTRITA (SISTEMA BASE E MODO GOD)
 # ==========================================
-# A Mágica da Impersonação acontece aqui:
 if st.session_state.usuario == SUPER_ADMIN and st.session_state.tipo_conta == 'pai':
     if 'impersonate' not in st.session_state:
         st.session_state.impersonate = st.session_state.usuario
@@ -528,7 +524,6 @@ else:
 
 TIPO_CONTA = st.session_state.tipo_conta
 
-# Configuração da Barra Lateral (Onde fica o Painel GOD)
 if TIPO_CONTA == 'pai': 
     st.sidebar.write(f"👔 Comissão: **{USER_LOGADO}**")
     
@@ -537,7 +532,6 @@ if TIPO_CONTA == 'pai':
         st.sidebar.markdown("⚡ **MODO GOD**")
         st.sidebar.caption("Escolha uma família para acessar e gerenciar:")
         
-        # Pega a lista de todos os usuários do app
         df_users = conn.query("SELECT username FROM usuarios", ttl=0)
         todas_contas = df_users['username'].tolist() if not df_users.empty else [SUPER_ADMIN]
         idx = todas_contas.index(USER_LOGADO) if USER_LOGADO in todas_contas else 0
@@ -548,13 +542,11 @@ if TIPO_CONTA == 'pai':
             st.session_state.impersonate = nova_conta
             st.rerun()
 
-        # O BOTÃO VERMELHO DO PÂNICO: Excluir a conta acessada
         if st.session_state.impersonate != SUPER_ADMIN:
             st.sidebar.markdown("---")
             st.sidebar.markdown("🚨 **ZONA DE PERIGO**")
             st.sidebar.caption(f"Cuidado! Isso apagará a família **{st.session_state.impersonate}** para sempre.")
             
-            # Caixa de texto para confirmar
             confirmacao = st.sidebar.text_input("Digite **EXCLUIR** para liberar o botão:", key="del_god_input")
             
             if confirmacao == "EXCLUIR":
@@ -571,7 +563,6 @@ if TIPO_CONTA == 'pai':
                     st.session_state.impersonate = SUPER_ADMIN
                     st.rerun()
             else:
-                # Botão fica desativado até a pessoa digitar a palavra certa
                 st.sidebar.button("💀 APAGAR FAMÍLIA", type="primary", use_container_width=True, disabled=True)
 
 else: 
@@ -605,7 +596,7 @@ else:
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
     if dados_jogador:
-        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val = dados_jogador
+        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, poupanca = dados_jogador
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel_atual)
         
         # --- LÓGICA DO BOTÃO SURPRESA (SÓ PARA O ATLETA) ---
@@ -619,6 +610,8 @@ if jogador_selecionado:
                 teve_vermelho = False
                 if not df_historico.empty: teve_vermelho = any("Cartão Vermelho" in str(inf) for inf in df_historico['infracao'])
 
+                nova_poupanca = poupanca + saldo_atual
+
                 if nivel_atual == "Em Avaliação 🕵️‍♂️":
                     nova_divisao = divisoes[0]
                     novo_index = 0
@@ -630,7 +623,6 @@ if jogador_selecionado:
                     nova_base = nova_divisao["valor"]
                     st.session_state.animacao_classificacao = True
                     st.session_state.nome_pedra_classificacao = nova_divisao["nome"]
-                
                 else:
                     novo_index = index_atual
                     animacao_tipo = None
@@ -664,7 +656,7 @@ if jogador_selecionado:
                     elif animacao_tipo == 'manter': st.session_state.animacao_manter = True
 
                 add_trofeu(jogador_selecionado, nova_divisao["nome"], saldo_atual)
-                update_status_saldo(jogador_selecionado, nova_divisao["nome"], nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas)
+                update_status_saldo(jogador_selecionado, nova_divisao["nome"], nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas, poupanca=nova_poupanca)
                 clear_historico(jogador_selecionado)
                 st.rerun()
             st.stop()
@@ -673,7 +665,7 @@ if jogador_selecionado:
             render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
             st.warning("⏳ **Temporada Encerrada!** O botão surpresa está esperando o atleta lá no vestiário.")
             if st.button("❌ Cancelar Fim de Temporada (Reabrir Mês)", use_container_width=True):
-                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                 st.rerun()
             st.stop()
 
@@ -701,9 +693,13 @@ if jogador_selecionado:
         # --- TELA NORMAL DO JOGADOR ---
         render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
         
-        # FEATURE: META DA TEMPORADA
+        # O BANCO E O SALDO SEPARADOS
+        st.markdown(f"<h3 style='text-align: center; color: #28a745; margin-top: -10px;'>💰 Cofre (Banco): R$ {poupanca:.2f}</h3>".replace('.', ','), unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # FEATURE: META DA TEMPORADA NO BANCO
         if meta_val > 0 and meta_desc:
-            progresso_meta = min((saldo_atual / meta_val) * 100, 100) if saldo_atual > 0 else 0
+            progresso_meta = min((poupanca / meta_val) * 100, 100) if meta_val > 0 else 0
             st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
             st.markdown(f"""
                 <div style="background-color: #1a1a1a; border-radius: 10px; width: 100%; height: 22px; margin-bottom: 5px; border: 1px solid #333; position: relative;">
@@ -713,15 +709,15 @@ if jogador_selecionado:
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-            if progresso_meta >= 100: st.success(f"🎉 Você atingiu a meta para: **{meta_desc}**!")
-            else: st.caption(f"Faltam R$ {(meta_val - saldo_atual):.2f} para alcançar a meta.".replace('.', ','))
+            if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
+            else: st.caption(f"Faltam R$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
             st.markdown("---")
 
         aba1, aba2 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus"])
         with aba1:
             col1, col2 = st.columns(2)
-            col1.metric("Saldo Atual", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
-            col2.metric("Faltas", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
+            col1.metric("⚽ Saldo da Temporada", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
+            col2.metric("🔴 Multas Atuais", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
 
             porcentagem = min((faltas_atual / limite_faltas) * 100, 100) if limite_faltas > 0 else 100
             cor_barra = "#28a745" if porcentagem < 50 else "#fd7e14" if porcentagem < 100 else "#dc3545"
@@ -773,7 +769,7 @@ if TIPO_CONTA == 'pai':
                     btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
                     if btn_aplicar:
                         valor_falta = regras_dinamicas[inf_sel]
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
                         add_notificacao(jogador_selecionado, f"🚨 Infração marcada: '{inf_sel}' (- R$ {valor_falta:.2f}).")
                         st.rerun()
@@ -789,7 +785,7 @@ if TIPO_CONTA == 'pai':
                     btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
                     if btn_bonus:
                         v_bonus = bonus_dinamicos[m_bonus_sel]
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
                         add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}).")
                         st.rerun()
@@ -800,17 +796,17 @@ if TIPO_CONTA == 'pai':
             if meta_val > 0 and meta_desc:
                 st.markdown("---")
                 st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
-                if saldo_atual >= meta_val:
-                    if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f})", type="primary", use_container_width=True):
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - meta_val, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
-                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False)
+                if poupanca >= meta_val:
+                    if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f} do Banco)", type="primary", use_container_width=True):
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - meta_val)
+                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, poupanca - meta_val)
                         add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
-                        add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado com sucesso pela comissão técnica.")
-                        st.success("Compra efetuada! O saldo foi abatido.")
+                        add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado usando o dinheiro do seu Banco!")
+                        st.success("Compra efetuada! O valor foi debitado do Banco.")
                         time.sleep(2)
                         st.rerun()
                 else:
-                    st.info(f"O atleta precisa de mais R$ {(meta_val - saldo_atual):.2f} para conseguir resgatar o prêmio.")
+                    st.info(f"O atleta tem R$ {poupanca:.2f} no Banco. Faltam R$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!")
                     
             st.markdown("---")
             st.markdown("**🗑️ Excluir Lançamento Errado**")
@@ -826,10 +822,10 @@ if TIPO_CONTA == 'pai':
                         st.rerun()
             
             st.markdown("---")
-            st.warning("🏁 **Encerrar Temporada** - Congela o saldo e libera a surpresa no app do atleta.")
+            st.warning("🏁 **Encerrar Temporada** - Manda o dinheiro pro Banco e libera a surpresa.")
             if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
-                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas)
-                add_notificacao(jogador_selecionado, "⏱️ FIM DE JOGO! A temporada foi encerrada. Descubra se você subiu de divisão!")
+                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                add_notificacao(jogador_selecionado, "⏱️ FIM DE JOGO! A temporada foi encerrada. Entre no Vestiário para ver sua divisão e guardar seu dinheiro!")
                 st.rerun()
 
     with tab_configs:
@@ -946,11 +942,17 @@ if TIPO_CONTA == 'pai':
                         with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
                         with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
                         
-                        ce_b, ce_i, ce_t, ce_l = st.columns(4)
+                        st.markdown("**💰 Configurações Financeiras**")
+                        ce_b, ce_i = st.columns(2)
                         with ce_b: ed_base = st.number_input("Piso Liga R$:", value=float(d_edit[6]))
                         with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
+                        
+                        ce_t, ce_l = st.columns(2)
                         with ce_t: ed_teto = st.number_input("Teto R$:", value=float(d_edit[8]))
                         with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
+                        
+                        st.markdown("**🏦 Saldo no Banco (Ajuste Manual)**")
+                        ed_poupanca = st.number_input("Dinheiro Guardado R$:", value=float(d_edit[14]))
                         
                         btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
                         if btn_salvar_contrato:
@@ -961,7 +963,7 @@ if TIPO_CONTA == 'pai':
                             else:
                                 avatar_final = d_edit[5]
                             
-                            edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
+                            edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin), ed_poupanca)
                             st.rerun()
 
         with sub_del:
