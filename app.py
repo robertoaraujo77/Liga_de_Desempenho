@@ -745,6 +745,6 @@ if TIPO_CONTA == 'pai':
             st.caption("Envie este link para o atleta. Ele não precisará digitar o e-mail ou nome, apenas o PIN!")
             if jogadores_ativos:
                 j_link = st.selectbox("Gerar link para:", jogadores_ativos, key="sel_link")
-                url_base = st.text_input("Endereço do seu App:", value="https://seusite.streamlit.app")
+                url_base = st.text_input("Endereço do seu App:", value="https://ligadedesempenho.streamlit.app/")
                 link_pronto = f"{url_base.rstrip('/')}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
                 st.code(link_pronto, language="http")
