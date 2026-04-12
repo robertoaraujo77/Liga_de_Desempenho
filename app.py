@@ -13,7 +13,7 @@ import hashlib
 import urllib.parse
 
 # Defina aqui o seu e-mail de login para ter acesso ao Painel GOD
-SUPER_ADMIN = "robertoaraujo77@gmail.com"
+SUPER_ADMIN = "robertojr1990@gmail.com"
 
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E PWA E CSS
