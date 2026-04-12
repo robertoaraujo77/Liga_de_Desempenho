@@ -12,6 +12,9 @@ from streamlit_cropper import st_cropper
 import hashlib
 import urllib.parse
 
+# Defina aqui o seu e-mail de login para ter acesso ao Painel GOD
+SUPER_ADMIN = "robertoaraujo77@gmail.com"
+
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E PWA E CSS
 # ==========================================
@@ -66,8 +69,6 @@ def init_db():
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, usuario TEXT, descricao TEXT, valor REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS notificacoes (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, mensagem TEXT, lida INTEGER DEFAULT 0, data TEXT)'''))
-        
-        # Nova Tabela Exclusiva para os Bônus
         s.execute(text('''CREATE TABLE IF NOT EXISTS bonus_regras (id SERIAL PRIMARY KEY, usuario TEXT, descricao TEXT, valor REAL)'''))
         
         res_cols = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status'")).fetchall()
@@ -88,7 +89,6 @@ def criar_conta(user, pw):
             s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), 
                       {"u": user_limpo, "p": hash_password(pw)})
             
-            # Pack Inicial de Faltas
             regras_padrao = [
                 {"u": user_limpo, "d": "🚿 Toalha molhada na cama", "v": 2.0},
                 {"u": user_limpo, "d": "🥱 Acordar reclamando", "v": 1.0},
@@ -101,7 +101,6 @@ def criar_conta(user, pw):
             ]
             s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), regras_padrao)
             
-            # Pack Inicial de Bônus
             bonus_padrao = [
                 {"u": user_limpo, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
                 {"u": user_limpo, "d": "🍽️ Ajudou a lavar a louça", "v": 3.0},
@@ -157,7 +156,6 @@ def delete_regra(descricao):
 
 def get_bonus_regras():
     df = conn.query('SELECT descricao, valor FROM bonus_regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=0)
-    # Se a tabela estiver vazia para a sua conta antiga, injeta os bônus padrão automaticamente
     if df.empty:
         bonus_padrao = [
             {"u": USER_LOGADO, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
@@ -231,7 +229,6 @@ def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar,
 
 def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val):
     with conn.session as s:
-        # AQUI É A MÁGICA DA TEMPORADA ZERO: O Saldo e a Base começam zerados.
         s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval)'), 
                   {"u": USER_LOGADO, "n": nome, "niv": "Em Avaliação 🕵️‍♂️", "b": 0.0, "s": 0.0, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
         s.commit()
@@ -420,7 +417,6 @@ if 'autenticado' not in st.session_state:
     st.session_state.usuario = None
     st.session_state.jogador_atual = None
 
-# Lendo o Link Mágico da URL
 params = st.query_params
 magic_equipe = params.get("equipe")
 magic_atleta = params.get("atleta")
@@ -428,7 +424,6 @@ magic_atleta = params.get("atleta")
 if not st.session_state.autenticado:
     st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho ⚽</h1>", unsafe_allow_html=True)
     
-    # Se o atleta entrou pelo Link Mágico
     if magic_equipe and magic_atleta:
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
@@ -459,7 +454,6 @@ if not st.session_state.autenticado:
             
         st.stop()
 
-    # Tela de Login Normal (Sem Link Mágico)
     menu_auth = st.tabs(["👔 Comissão Técnica", "⚽ Vestiário", "Criar Liga"])
     
     with menu_auth[0]:
@@ -693,7 +687,7 @@ if jogador_selecionado:
             else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
 
 # ==========================================
-# PAINEL DA COMISSÃO TÉCNICA (SÓ PAIS)
+# PAINEL DA COMISSÃO TÉCNICA E MODO GOD
 # ==========================================
 if TIPO_CONTA == 'pai':
     st.markdown("---")
@@ -702,7 +696,16 @@ if TIPO_CONTA == 'pai':
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
     
-    tab_jogo, tab_configs, tab_elenco = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco"])
+    is_god = (USER_LOGADO == SUPER_ADMIN)
+    
+    abas = ["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco"]
+    if is_god:
+        abas.append("⚡ Modo GOD")
+        
+    tabs = st.tabs(abas)
+    tab_jogo, tab_configs, tab_elenco = tabs[0], tabs[1], tabs[2]
+    if is_god:
+        tab_god = tabs[3]
     
     with tab_jogo:
         if jogador_selecionado:
@@ -777,7 +780,7 @@ if TIPO_CONTA == 'pai':
         
         with sub_faltas:
             st.markdown("**➕ Criar Nova Falta**")
-            with st.form("form_criar_regra", clear_on_submit=True):
+            with st.form("form_criar_falta", clear_on_submit=True):
                 c1, c2 = st.columns([3, 1])
                 with c1: d_regra = st.text_input("Descrição da Falta:")
                 with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
@@ -791,7 +794,7 @@ if TIPO_CONTA == 'pai':
             st.markdown("**✏️ Editar/Excluir Faltas**")
             if regras_dinamicas:
                 r_sel = st.selectbox("Selecione a falta para editar:", list(regras_dinamicas.keys()))
-                with st.form("form_editar_regra"):
+                with st.form("form_editar_falta"):
                     c_ed1, c_ed2 = st.columns([3, 1])
                     with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
                     with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
@@ -808,24 +811,24 @@ if TIPO_CONTA == 'pai':
 
         with sub_bonus:
             st.markdown("**➕ Criar Novo Bônus**")
-            with st.form("form_criar_bonus", clear_on_submit=True):
+            with st.form("form_criar_bonus_aba", clear_on_submit=True):
                 cb1, cb2 = st.columns([3, 1])
                 with cb1: d_bonus = st.text_input("Descrição do Bônus:")
-                with cb2: v_bonus = st.number_input("Valor R$:", min_value=0.50, step=0.50)
+                with cb2: v_bonus_input = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="num_bonus_novo")
                 btn_salvar_bonus = st.form_submit_button("Salvar Bônus", use_container_width=True)
                 if btn_salvar_bonus:
                     if d_bonus and d_bonus not in bonus_dinamicos:
-                        add_bonus_regra(d_bonus, v_bonus)
+                        add_bonus_regra(d_bonus, v_bonus_input)
                         st.rerun()
 
             st.markdown("---")
             st.markdown("**✏️ Editar/Excluir Bônus**")
             if bonus_dinamicos:
                 b_sel = st.selectbox("Selecione o bônus para editar:", list(bonus_dinamicos.keys()))
-                with st.form("form_editar_bonus"):
+                with st.form("form_editar_bonus_aba"):
                     cbe1, cbe2 = st.columns([3, 1])
                     with cbe1: nb_texto = st.text_input("Nova Descrição:", value=b_sel)
-                    with cbe2: nb_val = st.number_input("Novo Valor R$:", value=float(bonus_dinamicos[b_sel]), min_value=0.50)
+                    with cbe2: nb_val = st.number_input("Novo Valor R$:", value=float(bonus_dinamicos[b_sel]), min_value=0.50, key="num_bonus_edit")
                     cbb1, cbb2 = st.columns(2)
                     with cbb1: btn_update_bonus = st.form_submit_button("💾 Atualizar", use_container_width=True)
                     with cbb2: btn_delete_bonus = st.form_submit_button("🗑️ Excluir", use_container_width=True)
@@ -902,9 +905,7 @@ if TIPO_CONTA == 'pai':
                 j_link = st.selectbox("Atleta Convidado:", jogadores_ativos, key="sel_link")
                 
                 url_base = "https://robertoaraujo77.github.io/Liga_de_Desempenho"
-                
                 link_pronto = f"{url_base}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
-                
                 msg_wa = f"⚽ Olá {j_link}! A comissão técnica liberou seu acesso direto para o Vestiário da Liga de Desempenho:\n\n👉 {link_pronto}\n\nGuarde este link e use o seu PIN secreto para entrar no jogo!"
                 url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
                 
@@ -918,3 +919,20 @@ if TIPO_CONTA == 'pai':
                     </div>
                 </a>
                 """, unsafe_allow_html=True)
+
+    if is_god:
+        with tab_god:
+            st.error("👁️‍🗨️ VISÃO ONISCIENTE (MODO GOD) - Acesso direto ao Banco de Dados")
+            st.markdown("Aqui você vê os dados brutos de **todas as famílias e contas** do sistema, sem filtros.")
+            
+            tabelas = ["usuarios", "status", "historico", "trofeus", "regras", "bonus_regras", "notificacoes"]
+            for t in tabelas:
+                with st.expander(f"🗄️ Tabela: {t}"):
+                    try:
+                        df_god = conn.query(f'SELECT * FROM {t}', ttl=0)
+                        if df_god.empty:
+                            st.info("Tabela vazia.")
+                        else:
+                            st.dataframe(df_god, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Erro ao ler tabela: {e}")
