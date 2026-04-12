@@ -286,7 +286,6 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     if dados_jogador:
         nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, poupanca = dados_jogador
         
-        # Sistema inteligente: Sabe de onde devolver o dinheiro
         novo_saldo = saldo
         novas_faltas = faltas
         nova_poupanca = poupanca
@@ -305,7 +304,6 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
 
 def clear_historico(jogador):
     with conn.session as s:
-        # Quando limpar a temporada, apaga só bônus e faltas, mantém registro de compra e depósito
         s.execute(text("DELETE FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('falta', 'bonus')"), {"n": jogador, "u": USER_LOGADO})
         s.commit()
 
@@ -407,15 +405,12 @@ def mostrar_popup(titulo, mensagem, cor, emoji):
 
 if 'animacao_classificacao' in st.session_state and st.session_state.animacao_classificacao:
     st.session_state.animacao_classificacao = False
-    st.balloons()
     mostrar_popup("CONTRATO ASSINADO!", f"Sua avaliação terminou. Você está na<br><b>{st.session_state.nome_pedra_classificacao}</b>!", "#17a2b8", "📝🤝")
 if 'animacao_titulo' in st.session_state and st.session_state.animacao_titulo:
     st.session_state.animacao_titulo = False
-    st.balloons()
     mostrar_popup("CAMPEÃO DA ELITE!", "Você manteve a Coroa na 1ª Divisão!", "#ffd700", "🏆👑")
 if 'animacao_vitoria' in st.session_state and st.session_state.animacao_vitoria:
     st.session_state.animacao_vitoria = False
-    st.balloons()
     mostrar_popup("SUBIU DE DIVISÃO!", f"Excelente! Você alcançou a<br><b>{st.session_state.nome_pedra_vitoria}</b>", "#28a745", "⬆️🚀")
 if 'animacao_derrota' in st.session_state and st.session_state.animacao_derrota:
     st.session_state.animacao_derrota = False
