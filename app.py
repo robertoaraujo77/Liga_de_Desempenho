@@ -255,8 +255,6 @@ def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar,
         s.commit()
 
 def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, is_temporada_zero):
-    # AQUI ESTÁ A MÁGICA NOVA:
-    # Se NÃO for temporada zero, ele calcula a última divisão e o saldo já entra como o Piso da Liga!
     inc = max(incremento, 1.0)
     saltos_totais = int(round((teto_maximo - base_inicial) / inc))
     qtd_divisoes = saltos_totais + 1
@@ -989,14 +987,14 @@ if TIPO_CONTA == 'pai':
     with tab_elenco:
         sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar", "✏️ Contrato", "❌ Demitir", "🔗 Convite"])
         with sub_cad:
-            with st.form("form_escalar_novo", clear_on_submit=True):
+            with st.form("form_escalar_novo", clear_on_submit=False):
                 n_nome = st.text_input("Nome do Atleta:")
                 
                 n_avatar = st.selectbox("Avatar Padrão:", list(ESTILOS_AVATAR.keys()))
                 foto_up = st.file_uploader("📷 Ou envie uma Foto do Celular (ela vai substituir o Avatar padrão):", type=['png', 'jpg', 'jpeg'])
                 
                 c_b, c_i, c_t, c_l = st.columns(4)
-                with c_b: b_ini = st.number_input("Piso Liga (R$):", value=50.0)
+                with c_b: b_ini = st.number_input("Piso Liga (R$):", value=50.0, min_value=0.0)
                 with c_i: i_val = st.number_input("Aumento:", value=10.0)
                 with c_t: t_val = st.number_input("Teto:", value=100.0)
                 with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
@@ -1011,12 +1009,28 @@ if TIPO_CONTA == 'pai':
                 t_zero = st.checkbox("🕵️‍♂️ Iniciar na Temporada Zero (Sem divisão, saldo R$ 0,00 para teste)", value=False)
                 
                 btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
+                
+                # NOVO SISTEMA DE VALIDAÇÃO COM AVISOS CLAROS
                 if btn_cadastrar:
-                    if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
+                    erros = []
+                    if not n_nome.strip():
+                        erros.append("O **Nome do Atleta** não pode ficar em branco.")
+                    if not pin_j or len(pin_j) != 4 or not pin_j.isdigit():
+                        erros.append("O **PIN de Acesso** precisa ter exatamente 4 números.")
+                    if t_val <= b_ini:
+                        erros.append("Atenção: O **Teto Máximo** precisa ser maior que o Piso da Liga.")
+                    if i_val <= 0:
+                        erros.append("Atenção: O **Aumento** entre as divisões deve ser maior que zero.")
+                        
+                    if not erros:
                         avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
                         add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, t_zero)
+                        st.success("Atleta cadastrado com sucesso!")
+                        time.sleep(1)
                         st.rerun()
-                    else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
+                    else:
+                        for erro in erros:
+                            st.error(erro)
 
         with sub_edit:
             if jogadores_ativos:
@@ -1096,7 +1110,7 @@ if TIPO_CONTA == 'pai':
         st.info("**Bem-vindo ao Liga de Desempenho!** Este é o seu manual de como administrar a gamificação da sua casa.")
         
         with st.expander("🕵️‍♂️ 1. A Temporada Zero (O Início)", expanded=True):
-            st.write("Quando você cadastra um novo atleta, ele começa na divisão **'Em Avaliação'** com saldo R$ 0,00. Durante os primeiros 30 dias, você aplicará faltas e bônus. No fim do mês, o sistema calculará em qual Divisão ele merece estrear com base no saldo acumulado.")
+            st.write("Quando você cadastra um novo atleta, ele começa na divisão **'Em Avaliação'** com saldo R$ 0,00 se a caixa de 'Temporada Zero' estiver marcada. Durante os primeiros 30 dias, você aplicará faltas e bônus. No fim do mês, o sistema usará o **Piso, Aumento e Teto** que você definiu no cadastro para calcular em qual Divisão ele merece estrear!")
             
         with st.expander("⚖️ 2. Faltas, Bônus e o Limite"):
             st.write("- **🔴 Faltas:** Descontam do saldo da temporada e aumentam a barra de 'Multas Atuais'. Se a barra estourar o limite que você definiu no contrato, o atleta perde o direito de subir de divisão.")
