@@ -134,7 +134,7 @@ if not st.session_state.autenticado:
     st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho ⚽</h1>", unsafe_allow_html=True)
     
     # Se o atleta entrou pelo Link Mágico (Modo Videogame)
-    if magic_equipe e magic_atleta:
+    if magic_equipe and magic_atleta:
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
                 <h2 style="color: white; margin:0;">Vestiário</h2>
