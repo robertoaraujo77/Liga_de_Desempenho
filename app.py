@@ -8,7 +8,6 @@ import re
 from sqlalchemy import text
 from PIL import Image
 import io
-from streamlit_cropper import st_cropper
 import hashlib
 import urllib.parse
 
@@ -44,17 +43,29 @@ PEDRAS = ["Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrit
 ESTILOS_AVATAR = {"🧑 Desenho Moderno": "notionists", "🤠 Aventureiro": "adventurer", "🤖 Robô": "bottts", "😎 Emoji Divertido": "fun-emoji", "🧑‍🎨 Retrato Elegante": "micah", "👾 Pixel Art": "pixel-art"}
 
 # ==========================================
-# UTILITÁRIOS E SEGURANÇA
+# UTILITÁRIOS E SEGURANÇA E AUTO-CROP
 # ==========================================
 def hash_password(password):
     senha_limpa = str(password).strip()
     return hashlib.sha256(str.encode(senha_limpa)).hexdigest()
 
 def converter_para_base64(image):
+    # Faz o Auto-Crop (Recorte Centralizado Quadrado)
+    width, height = image.size
+    min_dim = min(width, height)
+    left = (width - min_dim)/2
+    top = (height - min_dim)/2
+    right = (width + min_dim)/2
+    bottom = (height + min_dim)/2
+    image = image.crop((left, top, right, bottom))
+    
+    # Redimensiona e salva
     image = image.resize((150, 150), Image.Resampling.LANCZOS)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
     buffered = io.BytesIO()
-    image.save(buffered, format="PNG")
-    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+    image.save(buffered, format="JPEG", quality=85)
+    return f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
 
 # ==========================================
 # CONEXÃO E BANCO DE DADOS
@@ -537,6 +548,22 @@ if TIPO_CONTA == 'pai':
             st.session_state.impersonate = nova_conta
             st.rerun()
 
+        # O BOTÃO VERMELHO DO PÂNICO: Excluir a conta acessada
+        if st.session_state.impersonate != SUPER_ADMIN:
+            st.sidebar.markdown("---")
+            if st.sidebar.button("🚨 EXCLUIR ESTA FAMÍLIA", type="primary", use_container_width=True):
+                with conn.session as s:
+                    s.execute(text("DELETE FROM usuarios WHERE username = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM status WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM historico WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM trofeus WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.execute(text("DELETE FROM notificacoes WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                    s.commit()
+                st.session_state.impersonate = SUPER_ADMIN
+                st.rerun()
+
 else: 
     st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
 
@@ -865,7 +892,11 @@ if TIPO_CONTA == 'pai':
         with sub_cad:
             with st.form("form_escalar_novo", clear_on_submit=True):
                 n_nome = st.text_input("Nome do Atleta:")
-                n_avatar = st.selectbox("Avatar:", list(ESTILOS_AVATAR.keys()))
+                
+                # O Truque do Upload de Imagem e Auto-Crop dentro do Form
+                n_avatar = st.selectbox("Avatar Padrão:", list(ESTILOS_AVATAR.keys()))
+                foto_up = st.file_uploader("📷 Ou envie uma Foto do Celular (ela vai substituir o Avatar padrão):", type=['png', 'jpg', 'jpeg'])
+                
                 c_b, c_i, c_t, c_l = st.columns(4)
                 with c_b: b_ini = st.number_input("Piso Liga (R$):", value=50.0)
                 with c_i: i_val = st.number_input("Aumento:", value=10.0)
@@ -881,7 +912,9 @@ if TIPO_CONTA == 'pai':
                 btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
                 if btn_cadastrar:
                     if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
-                        add_jogador(n_nome, ESTILOS_AVATAR[n_avatar], b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
+                        # Processa a imagem se existir, se não, usa o avatar selecionado
+                        avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
+                        add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
                         st.rerun()
                     else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
 
@@ -890,8 +923,13 @@ if TIPO_CONTA == 'pai':
                 j_edit = st.selectbox("Escolha o Atleta para ajustar o contrato:", jogadores_ativos, key="sel_edit")
                 d_edit = get_status(j_edit)
                 if d_edit:
+                    st.write("Visual atual: " + ("**[Sua Foto Personalizada]**" if d_edit[5].startswith('data:image') else "**[Desenho/Avatar Padrão]**"))
                     with st.form("form_ajustar_contrato"):
                         ed_nome = st.text_input("Novo Nome:", value=j_edit)
+                        
+                        ed_avatar = st.selectbox("Mudar Avatar Padrão:", ["Manter atual"] + list(ESTILOS_AVATAR.keys()))
+                        foto_ed = st.file_uploader("📷 Ou enviar NOVA Foto da Galeria (Sobrescreve a imagem atual):", type=['png', 'jpg', 'jpeg'])
+
                         st.caption("Deixe o PIN em branco caso não queira alterar.")
                         ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
                         
@@ -908,7 +946,15 @@ if TIPO_CONTA == 'pai':
                         
                         btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
                         if btn_salvar_contrato:
-                            edit_jogador(j_edit, ed_nome, d_edit[5], ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
+                            # Lógica para salvar a imagem ou avatar novo
+                            if foto_ed:
+                                avatar_final = converter_para_base64(Image.open(foto_ed))
+                            elif ed_avatar != "Manter atual":
+                                avatar_final = ESTILOS_AVATAR[ed_avatar]
+                            else:
+                                avatar_final = d_edit[5] # Mantém a imagem base64 ou o avatar que já estava no banco
+                            
+                            edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
                             st.rerun()
 
         with sub_del:
