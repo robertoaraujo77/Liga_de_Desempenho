@@ -251,14 +251,13 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
         s.commit()
     nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval = get_status(jogador)
     
-    # Atualiza a lógica para devolver o saldo corretamente dependendo do tipo da exclusão
     if tipo_item == 'falta':
         novo_saldo = saldo + float(valor_item)
         novas_faltas = max(0.0, faltas - float(valor_item))
     elif tipo_item == 'compra':
         novo_saldo = saldo + float(valor_item)
         novas_faltas = faltas
-    else: # bonus
+    else: 
         novo_saldo = saldo - float(valor_item)
         novas_faltas = faltas
         
@@ -545,23 +544,20 @@ if TIPO_CONTA == 'pai':
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-            # --- NOVA FUNCIONALIDADE: RESGATE DE META ---
+            # --- FUNCIONALIDADE: RESGATE DE META ---
             if meta_val > 0 and meta_desc:
                 st.markdown("---")
-                st.markdown(f"**🛍️ Efetuar Compra da Meta: {meta_desc}**")
+                st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
                 if saldo_atual >= meta_val:
                     if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f})", type="primary", use_container_width=True):
-                        # Abate o saldo mas mantém as faltas intactas
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - meta_val, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
-                        # Limpa o texto da meta para abrir espaço para o próximo objetivo
                         edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False)
-                        # Registra no histórico
                         add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
-                        st.success("Compra efetuada! O saldo foi abatido e a meta liberada para um novo objetivo.")
+                        st.success("Compra efetuada! O saldo foi abatido e o painel liberado para um novo objetivo.")
                         time.sleep(2)
                         st.rerun()
                 else:
-                    st.info(f"O atleta precisa de mais R$ {(meta_val - saldo_atual):.2f} para conseguir comprar a meta.")
+                    st.info(f"O atleta precisa de mais R$ {(meta_val - saldo_atual):.2f} para conseguir resgatar o prêmio.")
                     
             st.markdown("---")
             st.markdown("**🗑️ Excluir Lançamento Errado**")
@@ -621,11 +617,11 @@ if TIPO_CONTA == 'pai':
             with c_t: t_val = st.number_input("Teto:", value=100.0)
             with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
             
-            st.markdown("**🔐 Acesso do Atleta e Meta**")
+            st.markdown("**🔐 Acesso do Atleta e Prêmio**")
             c_pin, c_mdesc, c_mval = st.columns([1, 2, 1])
             with c_pin: pin_j = st.text_input("Crie o PIN (4 dig):", max_chars=4, placeholder="Ex: 1234")
-            with c_mdesc: m_desc = st.text_input("O que ele quer comprar?", placeholder="Ex: Jogo Novo")
-            with c_mval: m_val = st.number_input("Valor da Meta (R$):", min_value=0.0, step=10.0)
+            with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
+            with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
             
             if st.button("Cadastrar", type="primary", use_container_width=True):
                 if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
@@ -642,10 +638,10 @@ if TIPO_CONTA == 'pai':
                     st.caption("Deixe o PIN em branco caso não queira alterar.")
                     ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
                     
-                    st.markdown("**🎯 Editar Meta**")
+                    st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
                     ce_mdesc, ce_mval = st.columns([2, 1])
-                    with ce_mdesc: ed_mdesc = st.text_input("Nova Meta (Desc):", value=d_edit[12] if d_edit[12] else "")
-                    with ce_mval: ed_mval = st.number_input("Nova Meta (R$):", value=float(d_edit[13]), min_value=0.0)
+                    with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
+                    with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
                     
                     ce_b, ce_i, ce_t, ce_l = st.columns(4)
                     with ce_b: ed_base = st.number_input("Início R$:", value=float(d_edit[6]))
