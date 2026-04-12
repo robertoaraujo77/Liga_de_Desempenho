@@ -254,10 +254,21 @@ def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar,
                   {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas), "p": float(poupanca), "u": USER_LOGADO})
         s.commit()
 
-def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val):
+def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, is_temporada_zero):
+    # AQUI ESTÁ A MÁGICA NOVA:
+    # Se NÃO for temporada zero, ele calcula a última divisão e o saldo já entra como o Piso da Liga!
+    inc = max(incremento, 1.0)
+    saltos_totais = int(round((teto_maximo - base_inicial) / inc))
+    qtd_divisoes = saltos_totais + 1
+    pedra_idx = min(qtd_divisoes - 1, len(PEDRAS) - 1)
+    divisao_piso = f"{qtd_divisoes}ª Divisão - {PEDRAS[pedra_idx]}"
+
+    niv_inicial = "Em Avaliação 🕵️‍♂️" if is_temporada_zero else divisao_piso
+    b_inicial = 0.0 if is_temporada_zero else float(base_inicial)
+
     with conn.session as s:
         s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval, 0.0)'), 
-                  {"u": USER_LOGADO, "n": nome, "niv": "Em Avaliação 🕵️‍♂️", "b": 0.0, "s": 0.0, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
+                  {"u": USER_LOGADO, "n": nome, "niv": niv_inicial, "b": b_inicial, "s": b_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
         s.commit()
 
 def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin, nova_poupanca):
@@ -767,7 +778,6 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
-            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
             df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
             timeline = [base_atual]
             curr = base_atual
@@ -997,11 +1007,14 @@ if TIPO_CONTA == 'pai':
                 with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
                 with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
                 
+                st.markdown("**🏁 Modo de Estreia**")
+                t_zero = st.checkbox("🕵️‍♂️ Iniciar na Temporada Zero (Sem divisão, saldo R$ 0,00 para teste)", value=False)
+                
                 btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
                 if btn_cadastrar:
                     if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
                         avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
-                        add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
+                        add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, t_zero)
                         st.rerun()
                     else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
 
