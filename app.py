@@ -23,10 +23,16 @@ st.markdown("""
     /* Ajustes para Celular e Quebra de Linha nas Abas */
     button[data-baseweb="tab"] {
         white-space: nowrap !important;
+        font-size: 14px !important;
     }
     @media (max-width: 768px) {
         h1 { font-size: 1.6rem !important; }
         [data-testid="stMetricValue"] { font-size: 1.8rem !important; }
+        button[data-baseweb="tab"] { 
+            font-size: 11px !important; 
+            padding: 8px 10px !important; 
+            margin-right: 0px !important;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,10 +65,8 @@ def init_db():
         s.execute(text('''CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, infracao TEXT, desconto REAL, tipo TEXT)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, usuario TEXT, descricao TEXT, valor REAL)'''))
-        # Tabela para a Central de Notificações
         s.execute(text('''CREATE TABLE IF NOT EXISTS notificacoes (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, mensagem TEXT, lida INTEGER DEFAULT 0, data TEXT)'''))
         
-        # Atualizações do BD
         res_cols = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status'")).fetchall()
         cols = [r[0] for r in res_cols]
         if 'pin_jogador' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN pin_jogador TEXT"))
@@ -138,7 +142,6 @@ magic_atleta = params.get("atleta")
 if not st.session_state.autenticado:
     st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho ⚽</h1>", unsafe_allow_html=True)
     
-    # Se o atleta entrou pelo Link Mágico (Modo Videogame)
     if magic_equipe and magic_atleta:
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
@@ -165,7 +168,6 @@ if not st.session_state.autenticado:
             
         st.stop()
 
-    # Tela de Login Normal (Sem Link Mágico)
     menu_auth = st.tabs(["👔 Comissão Técnica", "⚽ Vestiário", "Criar Liga"])
     
     with menu_auth[0]:
@@ -691,7 +693,7 @@ if TIPO_CONTA == 'pai':
                     st.rerun()
 
     with tab_elenco:
-        sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar Novo", "✏️ Ajustar Contrato", "❌ Demitir", "🔗 Compartilhar Mágico"])
+        sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar", "✏️ Contrato", "❌ Demitir", "🔗 Convite"])
         with sub_cad:
             n_nome = st.text_input("Nome do Atleta:")
             n_avatar = st.selectbox("Avatar:", list(ESTILOS_AVATAR.keys()))
@@ -749,10 +751,12 @@ if TIPO_CONTA == 'pai':
             st.caption("Gere um convite elegante. A criança não verá códigos complexos, apenas um botão para entrar no aplicativo.")
             if jogadores_ativos:
                 j_link = st.selectbox("Atleta Convidado:", jogadores_ativos, key="sel_link")
-                url_base = st.text_input("Endereço do seu App:", value="https://ligadedesempenho.streamlit.app")
+                
+                # Link chumbado direto no código para ficar mais limpo
+                url_base = "https://robertoaraujo77.github.io/Liga_de_Desempenho"
                 
                 # Monta a URL mágica
-                link_pronto = f"{url_base.rstrip('/')}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
+                link_pronto = f"{url_base}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
                 
                 # Texto pré-pronto que vai para o WhatsApp da pessoa
                 msg_wa = f"⚽ Olá {j_link}! A comissão técnica liberou seu acesso direto para o Vestiário da Liga de Desempenho:\n\n👉 {link_pronto}\n\nGuarde este link e use o seu PIN secreto para entrar no jogo!"
