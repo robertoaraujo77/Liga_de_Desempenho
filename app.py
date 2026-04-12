@@ -86,6 +86,28 @@ def init_db():
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
         
+        # 🧹 FAXINA AUTOMÁTICA: Remove clones de Faltas (deixa apenas o mais recente)
+        s.execute(text('''
+            DELETE FROM regras 
+            WHERE id IN (
+                SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn 
+                    FROM regras
+                ) t WHERE t.rn > 1
+            )
+        '''))
+        
+        # 🧹 FAXINA AUTOMÁTICA: Remove clones de Bônus (deixa apenas o mais recente)
+        s.execute(text('''
+            DELETE FROM bonus_regras 
+            WHERE id IN (
+                SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn 
+                    FROM bonus_regras
+                ) t WHERE t.rn > 1
+            )
+        '''))
+
         s.commit()
 
 init_db()
@@ -823,6 +845,7 @@ if TIPO_CONTA == 'pai':
                     btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
                     if btn_bonus:
                         v_bonus = bonus_dinamicos[m_bonus_sel]
+                        # NOVA REGRA: O bônus diminui a barra de multas!
                         novas_faltas = max(0.0, faltas_atual - v_bonus)
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
