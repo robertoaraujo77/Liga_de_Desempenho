@@ -17,7 +17,7 @@ SUPER_ADMIN = "robertojr1990@gmail.com"
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E PWA E CSS
 # ==========================================
-st.set_page_config(page_title="Liga de Desempenho", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Liga de Desempenho", page_icon="🏆", layout="centered")
 
 st.markdown("""
     <link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
