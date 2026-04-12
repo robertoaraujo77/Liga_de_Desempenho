@@ -59,6 +59,26 @@
     <h1>⚽Liga de Desempenho⚽</h1>
     <p>O servidor oficial da sua liga está ativo e pronto para o jogo.</p>
     
-    <a href="https://ligadedesempenho.streamlit.app/" class="btn">Entrar em Campo</a>
+    <a href="https://ligadedesempenho.streamlit.app/" class="btn" id="btnEntrar">Entrar em Campo</a>
+
+    <script>
+        // MÁGICA DE RETENÇÃO DO LINK
+        // Lê os parâmetros da URL (ex: ?equipe=...&atleta=...)
+        let params = window.location.search;
+        
+        // Se a URL tiver o atleta (acabou de clicar no WhatsApp), salva no aparelho!
+        if (params.includes("atleta=")) {
+            localStorage.setItem("magicLinkParams", params);
+        } else {
+            // Se não tiver na URL (abriu pelo ícone instalado na Tela Inicial), recupera a memória!
+            let savedParams = localStorage.getItem("magicLinkParams");
+            if (savedParams) {
+                params = savedParams;
+            }
+        }
+        
+        // Atualiza o botão silenciosamente para sempre levar o acesso correto
+        document.getElementById("btnEntrar").href = "https://ligadedesempenho.streamlit.app/" + params;
+    </script>
 </body>
 </html>
