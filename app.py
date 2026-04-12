@@ -845,7 +845,6 @@ if TIPO_CONTA == 'pai':
             st.warning("🏁 **Encerrar Temporada** - Manda o dinheiro pro Banco e libera a surpresa.")
             if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
                 update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                add_notificacao(jogador_selecionado, "⏱️ FIM DE JOGO! A temporada foi encerrada. Entre no Vestiário para ver sua divisão e guardar seu dinheiro!")
                 st.rerun()
 
     with tab_configs:
