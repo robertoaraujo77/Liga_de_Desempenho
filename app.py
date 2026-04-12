@@ -551,18 +551,28 @@ if TIPO_CONTA == 'pai':
         # O BOTÃO VERMELHO DO PÂNICO: Excluir a conta acessada
         if st.session_state.impersonate != SUPER_ADMIN:
             st.sidebar.markdown("---")
-            if st.sidebar.button("🚨 EXCLUIR ESTA FAMÍLIA", type="primary", use_container_width=True):
-                with conn.session as s:
-                    s.execute(text("DELETE FROM usuarios WHERE username = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM status WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM historico WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM trofeus WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.execute(text("DELETE FROM notificacoes WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                    s.commit()
-                st.session_state.impersonate = SUPER_ADMIN
-                st.rerun()
+            st.sidebar.markdown("🚨 **ZONA DE PERIGO**")
+            st.sidebar.caption(f"Cuidado! Isso apagará a família **{st.session_state.impersonate}** para sempre.")
+            
+            # Caixa de texto para confirmar
+            confirmacao = st.sidebar.text_input("Digite **EXCLUIR** para liberar o botão:", key="del_god_input")
+            
+            if confirmacao == "EXCLUIR":
+                if st.sidebar.button("💀 APAGAR FAMÍLIA", type="primary", use_container_width=True):
+                    with conn.session as s:
+                        s.execute(text("DELETE FROM usuarios WHERE username = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM status WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM historico WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM trofeus WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM notificacoes WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.commit()
+                    st.session_state.impersonate = SUPER_ADMIN
+                    st.rerun()
+            else:
+                # Botão fica desativado até a pessoa digitar a palavra certa
+                st.sidebar.button("💀 APAGAR FAMÍLIA", type="primary", use_container_width=True, disabled=True)
 
 else: 
     st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
@@ -893,7 +903,6 @@ if TIPO_CONTA == 'pai':
             with st.form("form_escalar_novo", clear_on_submit=True):
                 n_nome = st.text_input("Nome do Atleta:")
                 
-                # O Truque do Upload de Imagem e Auto-Crop dentro do Form
                 n_avatar = st.selectbox("Avatar Padrão:", list(ESTILOS_AVATAR.keys()))
                 foto_up = st.file_uploader("📷 Ou envie uma Foto do Celular (ela vai substituir o Avatar padrão):", type=['png', 'jpg', 'jpeg'])
                 
@@ -912,7 +921,6 @@ if TIPO_CONTA == 'pai':
                 btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
                 if btn_cadastrar:
                     if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
-                        # Processa a imagem se existir, se não, usa o avatar selecionado
                         avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
                         add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
                         st.rerun()
@@ -946,13 +954,12 @@ if TIPO_CONTA == 'pai':
                         
                         btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
                         if btn_salvar_contrato:
-                            # Lógica para salvar a imagem ou avatar novo
                             if foto_ed:
                                 avatar_final = converter_para_base64(Image.open(foto_ed))
                             elif ed_avatar != "Manter atual":
                                 avatar_final = ESTILOS_AVATAR[ed_avatar]
                             else:
-                                avatar_final = d_edit[5] # Mantém a imagem base64 ou o avatar que já estava no banco
+                                avatar_final = d_edit[5]
                             
                             edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
                             st.rerun()
