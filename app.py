@@ -62,6 +62,7 @@ def obter_regras_padrao(usuario):
         {"u": usuario, "d": "🫩 Responder os pais", "v": 3.0},
         {"u": usuario, "d": "🥊 Brigar com o irmão", "v": 5.0},
         {"u": usuario, "d": "🎮 Passar do limite de telas", "v": 3.0}
+        {"u": usuario, "d": "🤥 Mentir para os pais", "v": 15.0}
     ]
 
 def obter_bonus_padrao(usuario):
