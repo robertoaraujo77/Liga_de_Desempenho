@@ -12,7 +12,7 @@ from streamlit_cropper import st_cropper
 import hashlib
 import urllib.parse
 
-# Defina aqui o seu e-mail de login para ter acesso ao Painel GOD
+# Chave Mestra do Aplicativo
 SUPER_ADMIN = "robertojr1990@gmail.com"
 
 # ==========================================
@@ -505,16 +505,45 @@ if not st.session_state.autenticado:
     st.stop()
 
 # ==========================================
-# ÁREA RESTRITA (SISTEMA BASE)
+# ÁREA RESTRITA (SISTEMA BASE E MODO GOD)
 # ==========================================
-USER_LOGADO = st.session_state.usuario
+# A Mágica da Impersonação acontece aqui:
+if st.session_state.usuario == SUPER_ADMIN and st.session_state.tipo_conta == 'pai':
+    if 'impersonate' not in st.session_state:
+        st.session_state.impersonate = st.session_state.usuario
+    USER_LOGADO = st.session_state.impersonate
+else:
+    USER_LOGADO = st.session_state.usuario
+
 TIPO_CONTA = st.session_state.tipo_conta
 
-if TIPO_CONTA == 'pai': st.sidebar.write(f"👔 Comissão: **{USER_LOGADO}**")
-else: st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
+# Configuração da Barra Lateral (Onde fica o Painel GOD)
+if TIPO_CONTA == 'pai': 
+    st.sidebar.write(f"👔 Comissão: **{USER_LOGADO}**")
+    
+    if st.session_state.usuario == SUPER_ADMIN:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("⚡ **MODO GOD**")
+        st.sidebar.caption("Escolha uma família para acessar e gerenciar:")
+        
+        # Pega a lista de todos os usuários do app
+        df_users = conn.query("SELECT username FROM usuarios", ttl=0)
+        todas_contas = df_users['username'].tolist() if not df_users.empty else [SUPER_ADMIN]
+        idx = todas_contas.index(USER_LOGADO) if USER_LOGADO in todas_contas else 0
+        
+        nova_conta = st.sidebar.selectbox("Acessar conta de:", todas_contas, index=idx, label_visibility="collapsed")
+        
+        if nova_conta != USER_LOGADO:
+            st.session_state.impersonate = nova_conta
+            st.rerun()
+
+else: 
+    st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
 
 if st.sidebar.button("Sair"):
     st.session_state.autenticado = False
+    if 'impersonate' in st.session_state:
+        del st.session_state['impersonate']
     st.query_params.clear()
     st.rerun()
 
@@ -687,7 +716,7 @@ if jogador_selecionado:
             else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
 
 # ==========================================
-# PAINEL DA COMISSÃO TÉCNICA E MODO GOD
+# PAINEL DA COMISSÃO TÉCNICA (SÓ PAIS)
 # ==========================================
 if TIPO_CONTA == 'pai':
     st.markdown("---")
@@ -696,16 +725,7 @@ if TIPO_CONTA == 'pai':
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
     
-    is_god = (USER_LOGADO == SUPER_ADMIN)
-    
-    abas = ["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco"]
-    if is_god:
-        abas.append("⚡ Modo GOD")
-        
-    tabs = st.tabs(abas)
-    tab_jogo, tab_configs, tab_elenco = tabs[0], tabs[1], tabs[2]
-    if is_god:
-        tab_god = tabs[3]
+    tab_jogo, tab_configs, tab_elenco = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco"])
     
     with tab_jogo:
         if jogador_selecionado:
@@ -919,20 +939,3 @@ if TIPO_CONTA == 'pai':
                     </div>
                 </a>
                 """, unsafe_allow_html=True)
-
-    if is_god:
-        with tab_god:
-            st.error("👁️‍🗨️ VISÃO ONISCIENTE (MODO GOD) - Acesso direto ao Banco de Dados")
-            st.markdown("Aqui você vê os dados brutos de **todas as famílias e contas** do sistema, sem filtros.")
-            
-            tabelas = ["usuarios", "status", "historico", "trofeus", "regras", "bonus_regras", "notificacoes"]
-            for t in tabelas:
-                with st.expander(f"🗄️ Tabela: {t}"):
-                    try:
-                        df_god = conn.query(f'SELECT * FROM {t}', ttl=0)
-                        if df_god.empty:
-                            st.info("Tabela vazia.")
-                        else:
-                            st.dataframe(df_god, use_container_width=True)
-                    except Exception as e:
-                        st.warning(f"Erro ao ler tabela: {e}")
