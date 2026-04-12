@@ -3,86 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-
     <title>Liga de Desempenho</title>
-    
     <link rel="manifest" href="static/manifest.json">
-    
     <style>
-        /* Tira qualquer margem e impede a tela do fundo de rolar */
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            width: 100vw;
-            height: 100vh; 
-            overflow: hidden; 
-            background-color: #0e1117; 
-            color: #ffffff; 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-        }
-        
-        /* Container da tela de boas vindas */
-        #telaInicial {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            text-align: center;
-            transition: opacity 0.5s ease;
-        }
-
-        .logo {
-            width: 160px; 
-            border-radius: 30px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
-            margin-bottom: 25px;
-        }
+        body { background-color: #0e1117; color: #ffffff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+        .logo { width: 160px; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px; }
         h1 { font-size: 28px; margin: 0 0 10px 0; }
         p { font-size: 16px; color: #a0aabf; margin-bottom: 40px; padding: 0 30px; line-height: 1.5; }
-        
-        .btn { 
-            background: linear-gradient(135deg, #1488cc 0%, #2b32b2 100%); 
-            color: white; 
-            padding: 18px 40px; 
-            border: none;
-            border-radius: 50px; 
-            font-weight: 900; 
-            font-size: 18px; 
-            cursor: pointer;
-            box-shadow: 0 8px 20px rgba(20, 136, 204, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* O Espelho que vai rodar o Streamlit em tela cheia */
-        #appFrame {
-            display: none; /* Começa escondido */
-            width: 100vw;
-            height: 100vh;
-            border: none;
-            margin: 0;
-            padding: 0;
-        }
+        .btn { background: linear-gradient(135deg, #1488cc 0%, #2b32b2 100%); color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; font-weight: 900; font-size: 18px; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
-    
-    <div id="telaInicial">
-        <img src="static/icon-512.png" alt="Ícone Liga de Desempenho" class="logo">
-        <h1>⚽Liga de Desempenho⚽</h1>
-        <p>O servidor oficial da sua liga está ativo e pronto para o jogo.</p>
-        <button class="btn" id="btnEntrar">Entrar em Campo</button>
-    </div>
-
-    <iframe id="appFrame" allow="fullscreen"></iframe>
+    <img src="static/icon-512.png" alt="Ícone" class="logo">
+    <h1>⚽Liga de Desempenho⚽</h1>
+    <p>O servidor oficial da sua liga está ativo e pronto para o jogo.</p>
+    <button class="btn" id="btnEntrar">Entrar em Campo</button>
 
     <script>
-        // 1. MÁGICA DE RETENÇÃO DO LINK NO CELULAR
         let params = window.location.search;
         if (params.includes("atleta=")) {
             localStorage.setItem("magicLinkParams", params);
@@ -90,25 +27,13 @@
             let savedParams = localStorage.getItem("magicLinkParams");
             if (savedParams) { params = savedParams; }
         }
-
-        // 2. O CLIQUE NO BOTÃO
+        
         document.getElementById("btnEntrar").addEventListener("click", function() {
-            // Esconde a tela de boas vindas
-            document.getElementById("telaInicial").style.display = "none";
-            
-            // Mostra o iframe e injeta o Streamlit dentro dele com os parâmetros salvos!
-            let frame = document.getElementById("appFrame");
-            frame.style.display = "block";
-            frame.src = "https://ligadedesempenho.streamlit.app/" + params;
+            window.location.href = "https://ligadedesempenho.streamlit.app/" + params;
         });
 
-        // 3. REGISTRO DO SERVICE WORKER (Para o app instalar certinho)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registrado!', reg))
-                    .catch(err => console.log('Erro no Service Worker:', err));
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }
     </script>
 </body>
