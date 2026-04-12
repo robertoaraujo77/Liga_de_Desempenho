@@ -285,20 +285,28 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     dados_jogador = get_status(jogador)
     if dados_jogador:
         nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, poupanca = dados_jogador
+        
+        # Sistema inteligente: Sabe de onde devolver o dinheiro
+        novo_saldo = saldo
+        novas_faltas = faltas
+        nova_poupanca = poupanca
+        
         if tipo_item == 'falta':
             novo_saldo = saldo + float(valor_item)
             novas_faltas = max(0.0, faltas - float(valor_item))
-        elif tipo_item == 'compra':
-            novo_saldo = saldo + float(valor_item)
-            novas_faltas = faltas
-        else: 
+        elif tipo_item == 'bonus':
             novo_saldo = saldo - float(valor_item)
-            novas_faltas = faltas
-        update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite, poupanca)
+        elif tipo_item == 'compra':
+            nova_poupanca = poupanca + float(valor_item)
+        elif tipo_item == 'deposito':
+            nova_poupanca = max(0.0, poupanca - float(valor_item))
+            
+        update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite, nova_poupanca)
 
 def clear_historico(jogador):
     with conn.session as s:
-        s.execute(text('DELETE FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"n": jogador, "u": USER_LOGADO})
+        # Quando limpar a temporada, apaga só bônus e faltas, mantém registro de compra e depósito
+        s.execute(text("DELETE FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('falta', 'bonus')"), {"n": jogador, "u": USER_LOGADO})
         s.commit()
 
 def add_trofeu(jogador, nivel, saldo):
@@ -680,7 +688,7 @@ if jogador_selecionado:
                 """, unsafe_allow_html=True)
                 
                 for _, notif in notificacoes_ativas.iterrows():
-                    if "GOLAÇO" in notif['mensagem'] or "Parabéns" in notif['mensagem']:
+                    if "GOLAÇO" in notif['mensagem'] or "Parabéns" in notif['mensagem'] or "DEPÓSITO" in notif['mensagem']:
                         st.success(f"**{notif['data']}** - {notif['mensagem']}")
                     else:
                         st.error(f"**{notif['data']}** - {notif['mensagem']}")
@@ -710,7 +718,7 @@ if jogador_selecionado:
                 </div>
             """, unsafe_allow_html=True)
             if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
-            else: st.caption(f"Faltam R$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
+            else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
             st.markdown("---")
 
         aba1, aba2 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus"])
@@ -724,11 +732,15 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
-            df_hist_asc = conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id ASC', params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
+            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
+            df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
             timeline = [base_atual]
             curr = base_atual
             for _, row in df_hist_asc.iterrows():
-                curr = curr + row['desconto'] if row['tipo'] == 'bonus' else curr - row['desconto']
+                if row['tipo'] == 'bonus':
+                    curr += row['desconto']
+                elif row['tipo'] == 'falta':
+                    curr -= row['desconto']
                 timeline.append(curr)
             if len(timeline) == 1: timeline.append(base_atual) 
             
@@ -737,7 +749,7 @@ if jogador_selecionado:
             df_historico = get_historico(jogador_selecionado)
             if not df_historico.empty:
                 df_view = df_historico.copy()
-                df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] == 'bonus' else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
+                df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
                 st.dataframe(df_view[['data', 'infracao', 'Lançamento']].rename(columns={'data': 'Data', 'infracao': 'Motivo'}), use_container_width=True, hide_index=True)
 
         with aba2:
@@ -792,12 +804,25 @@ if TIPO_CONTA == 'pai':
                 else:
                     st.warning("Crie bônus na aba 'Regras e Bônus' primeiro.")
                     st.form_submit_button("Aguardando bônus...")
-                
+            
+            st.markdown("---")
+            st.markdown(f"**🏦 Depósito Extra no Cofre (Presentes/Avulsos)**")
+            with st.form("form_deposito", clear_on_submit=True):
+                m_deposito = st.text_input("Motivo do Depósito:", placeholder="Ex: Dinheiro da Vó, Mesada extra...")
+                v_deposito = st.number_input("Valor R$:", min_value=1.00, step=1.00, key="val_deposito")
+                btn_deposito = st.form_submit_button("Depositar Direto no Banco", use_container_width=True)
+                if btn_deposito:
+                    if m_deposito:
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca + v_deposito)
+                        add_historico(jogador_selecionado, f"🏦 {m_deposito}", v_deposito, 'deposito')
+                        add_notificacao(jogador_selecionado, f"💰 DEPÓSITO EXTRA! Você recebeu um depósito direto no cofre: '{m_deposito}' (+ R$ {v_deposito:.2f}).")
+                        st.rerun()
+
             if meta_val > 0 and meta_desc:
                 st.markdown("---")
                 st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
                 if poupanca >= meta_val:
-                    if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f} do Banco)", type="primary", use_container_width=True):
+                    if st.button(f"✅ Confirmar Compra (- R\$ {meta_val:.2f} do Banco)".replace('.', ','), type="primary", use_container_width=True):
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - meta_val)
                         edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, poupanca - meta_val)
                         add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
@@ -806,7 +831,7 @@ if TIPO_CONTA == 'pai':
                         time.sleep(2)
                         st.rerun()
                 else:
-                    st.info(f"O atleta tem R$ {poupanca:.2f} no Banco. Faltam R$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!")
+                    st.info(f"O atleta tem R\$ {poupanca:.2f} no Banco. Faltam R\$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!".replace('.', ','))
                     
             st.markdown("---")
             st.markdown("**🗑️ Excluir Lançamento Errado**")
@@ -942,7 +967,7 @@ if TIPO_CONTA == 'pai':
                         with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
                         with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
                         
-                        st.markdown("**💰 Configurações Financeiras**")
+                        st.markdown("**💰 Configurações Financeiras e Cofre**")
                         ce_b, ce_i = st.columns(2)
                         with ce_b: ed_base = st.number_input("Piso Liga R$:", value=float(d_edit[6]))
                         with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
