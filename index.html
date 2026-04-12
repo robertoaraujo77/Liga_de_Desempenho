@@ -18,38 +18,23 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh; /* Usa 100% da altura da tela */
+            height: 100vh;
             text-align: center;
         }
         .logo {
-            width: 160px; /* Ícone bem maior */
-            border-radius: 30px; /* Bordas arredondadas estilo iOS/Android */
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8); /* Sombra elegante */
+            width: 160px;
+            border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
             margin-bottom: 25px;
         }
-        h1 {
-            font-size: 28px;
-            margin: 0 0 10px 0;
-        }
-        p {
-            font-size: 16px;
-            color: #a0aabf;
-            margin-bottom: 40px;
-            padding: 0 30px;
-            line-height: 1.5;
-        }
+        h1 { font-size: 28px; margin: 0 0 10px 0; }
+        p { font-size: 16px; color: #a0aabf; margin-bottom: 40px; padding: 0 30px; line-height: 1.5; }
         .btn { 
             background: linear-gradient(135deg, #1488cc 0%, #2b32b2 100%); 
-            color: white; 
-            padding: 18px 40px; 
-            text-decoration: none; 
-            border-radius: 50px; /* Botão em formato de pílula */
-            font-weight: 900; 
-            font-size: 18px; 
-            display: inline-block;
-            box-shadow: 0 8px 20px rgba(20, 136, 204, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            color: white; padding: 18px 40px; text-decoration: none; 
+            border-radius: 50px; font-weight: 900; font-size: 18px; 
+            display: inline-block; box-shadow: 0 8px 20px rgba(20, 136, 204, 0.4);
+            text-transform: uppercase; letter-spacing: 1px;
         }
     </style>
 </head>
@@ -62,23 +47,24 @@
     <a href="https://ligadedesempenho.streamlit.app/" class="btn" id="btnEntrar">Entrar em Campo</a>
 
     <script>
-        // MÁGICA DE RETENÇÃO DO LINK
-        // Lê os parâmetros da URL (ex: ?equipe=...&atleta=...)
+        // 1. MÁGICA DE RETENÇÃO DO LINK
         let params = window.location.search;
-        
-        // Se a URL tiver o atleta (acabou de clicar no WhatsApp), salva no aparelho!
         if (params.includes("atleta=")) {
             localStorage.setItem("magicLinkParams", params);
         } else {
-            // Se não tiver na URL (abriu pelo ícone instalado na Tela Inicial), recupera a memória!
             let savedParams = localStorage.getItem("magicLinkParams");
-            if (savedParams) {
-                params = savedParams;
-            }
+            if (savedParams) { params = savedParams; }
         }
-        
-        // Atualiza o botão silenciosamente para sempre levar o acesso correto
         document.getElementById("btnEntrar").href = "https://ligadedesempenho.streamlit.app/" + params;
+
+        // 2. REGISTRO DO SERVICE WORKER (Aciona o Banner de Instalação!)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registrado!', reg))
+                    .catch(err => console.log('Erro no Service Worker:', err));
+            });
+        }
     </script>
 </body>
 </html>
