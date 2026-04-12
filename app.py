@@ -10,6 +10,7 @@ from PIL import Image
 import io
 from streamlit_cropper import st_cropper
 import hashlib
+import urllib.parse
 
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E PWA
