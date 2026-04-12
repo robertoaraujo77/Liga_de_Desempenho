@@ -10,6 +10,8 @@ from PIL import Image
 import io
 from streamlit_cropper import st_cropper
 import hashlib
+import requests
+import urllib.parse
 
 # ==========================================
 # CONFIGURAÇÃO DA PÁGINA E PWA
@@ -30,7 +32,7 @@ PEDRAS = ["Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrit
 ESTILOS_AVATAR = {"🧑 Desenho Moderno": "notionists", "🤠 Aventureiro": "adventurer", "🤖 Robô": "bottts", "😎 Emoji Divertido": "fun-emoji", "🧑‍🎨 Retrato Elegante": "micah", "👾 Pixel Art": "pixel-art"}
 
 # ==========================================
-# UTILITÁRIOS E SEGURANÇA
+# UTILITÁRIOS, SEGURANÇA E NOTIFICAÇÕES
 # ==========================================
 def hash_password(password):
     senha_limpa = str(password).strip()
@@ -41,6 +43,16 @@ def converter_para_base64(image):
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+def notificar_whatsapp(numero, apikey, mensagem):
+    if numero and apikey:
+        try:
+            num_limpo = re.sub(r'\D', '', str(numero))
+            msg_encoded = urllib.parse.quote(mensagem)
+            url = f"https://api.callmebot.com/whatsapp.php?phone={num_limpo}&text={msg_encoded}&apikey={apikey}"
+            requests.get(url, timeout=5)
+        except Exception as e:
+            pass # Ignora silenciosamente se a API falhar para não travar o app
 
 # ==========================================
 # CONEXÃO E BANCO DE DADOS
@@ -55,12 +67,14 @@ def init_db():
         s.execute(text('''CREATE TABLE IF NOT EXISTS trofeus (id SERIAL PRIMARY KEY, usuario TEXT, nome TEXT, data TEXT, nivel TEXT, saldo REAL)'''))
         s.execute(text('''CREATE TABLE IF NOT EXISTS regras (id SERIAL PRIMARY KEY, usuario TEXT, descricao TEXT, valor REAL)'''))
         
-        # Atualizações do BD para as Novas Features (PIN e Meta)
+        # Atualizações do BD
         res_cols = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='status'")).fetchall()
         cols = [r[0] for r in res_cols]
         if 'pin_jogador' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN pin_jogador TEXT"))
         if 'meta_descricao' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_descricao TEXT"))
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
+        if 'wa_numero' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN wa_numero TEXT"))
+        if 'wa_apikey' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN wa_apikey TEXT"))
         
         s.commit()
 
@@ -191,11 +205,11 @@ def get_jogadores():
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, wa_numero, wa_apikey FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
     if not df.empty:
         row = df.iloc[0].to_dict()
         return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
-                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0))
+                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0), row['wa_numero'], row['wa_apikey'])
     return None
 
 def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo, limite_faltas):
@@ -204,16 +218,16 @@ def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar,
                   {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas), "u": USER_LOGADO})
         s.commit()
 
-def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val):
+def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, wa_num, wa_api):
     with conn.session as s:
-        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval)'), 
-                  {"u": USER_LOGADO, "n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
+        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, wa_numero, wa_apikey) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval, :wnum, :wapi)'), 
+                  {"u": USER_LOGADO, "n": nome, "niv": "Calculando...", "b": base_inicial, "s": base_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val, "wnum": wa_num, "wapi": wa_api})
         s.commit()
 
-def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin):
+def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin, wa_num, wa_api):
     with conn.session as s:
-        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, meta_descricao=:mdesc, meta_valor=:mval'
-        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "mdesc": meta_desc, "mval": float(meta_val), "na": nome_antigo, "u": USER_LOGADO}
+        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, meta_descricao=:mdesc, meta_valor=:mval, wa_numero=:wnum, wa_apikey=:wapi'
+        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "mdesc": meta_desc, "mval": float(meta_val), "wnum": wa_num, "wapi": wa_api, "na": nome_antigo, "u": USER_LOGADO}
         if change_pin:
             query += ', pin_jogador=:pin'
             params['pin'] = hash_password(pin_jogador)
@@ -249,19 +263,21 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
         s.execute(text('DELETE FROM historico WHERE id = :id AND usuario = :u'), {"id": int(id_item), "u": USER_LOGADO})
         s.commit()
-    nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval = get_status(jogador)
-    
-    if tipo_item == 'falta':
-        novo_saldo = saldo + float(valor_item)
-        novas_faltas = max(0.0, faltas - float(valor_item))
-    elif tipo_item == 'compra':
-        novo_saldo = saldo + float(valor_item)
-        novas_faltas = faltas
-    else: 
-        novo_saldo = saldo - float(valor_item)
-        novas_faltas = faltas
+    dados_jogador = get_status(jogador)
+    if dados_jogador:
+        nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, wnum, wapi = dados_jogador
         
-    update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite)
+        if tipo_item == 'falta':
+            novo_saldo = saldo + float(valor_item)
+            novas_faltas = max(0.0, faltas - float(valor_item))
+        elif tipo_item == 'compra':
+            novo_saldo = saldo + float(valor_item)
+            novas_faltas = faltas
+        else: 
+            novo_saldo = saldo - float(valor_item)
+            novas_faltas = faltas
+            
+        update_status_saldo(jogador, nivel, base, novo_saldo, novas_faltas, aguardando, avatar, titulos, teto, limite)
 
 def clear_historico(jogador):
     with conn.session as s:
@@ -395,7 +411,7 @@ else:
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
     if dados_jogador:
-        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val = dados_jogador
+        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, wa_num, wa_api = dados_jogador
         
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual)
         
@@ -458,7 +474,7 @@ if jogador_selecionado:
         # --- TELA NORMAL DO JOGADOR ---
         render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
         
-        # FEATURE: META DA TEMPORADA (OBJETIVO DE POUPANÇA)
+        # FEATURE: META DA TEMPORADA
         if meta_val > 0 and meta_desc:
             progresso_meta = min((saldo_atual / meta_val) * 100, 100) if saldo_atual > 0 else 0
             st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
@@ -526,8 +542,14 @@ if TIPO_CONTA == 'pai':
             with col_infracao: inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()), label_visibility="collapsed")
             with col_btn_add:
                 if st.button("Aplicar Falta", type="primary", use_container_width=True):
-                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - regras_dinamicas[inf_sel], faltas_atual + regras_dinamicas[inf_sel], 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
-                    add_historico(jogador_selecionado, inf_sel, regras_dinamicas[inf_sel], 'falta')
+                    valor_falta = regras_dinamicas[inf_sel]
+                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                    add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
+                    
+                    # DISPARA O WHATSAPP DA FALTA
+                    msg_wa = f"🚨 O Árbitro marcou uma infração: '{inf_sel}' (- R$ {valor_falta:.2f})."
+                    notificar_whatsapp(wa_num, wa_api, msg_wa)
+                    
                     st.rerun()
                     
             st.markdown("---")
@@ -541,19 +563,28 @@ if TIPO_CONTA == 'pai':
                     if m_bonus:
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus}", v_bonus, 'bonus')
+                        
+                        # DISPARA O WHATSAPP DO BÔNUS
+                        msg_wa = f"⚽ GOLAÇO! A comissão técnica aplicou um bônus: '{m_bonus}' (+ R$ {v_bonus:.2f}). Continue assim!"
+                        notificar_whatsapp(wa_num, wa_api, msg_wa)
+                        
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-            # --- FUNCIONALIDADE: RESGATE DE META ---
             if meta_val > 0 and meta_desc:
                 st.markdown("---")
                 st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
                 if saldo_atual >= meta_val:
                     if st.button(f"✅ Confirmar Compra (- R$ {meta_val:.2f})", type="primary", use_container_width=True):
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - meta_val, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
-                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False)
+                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, wa_num, wa_api)
                         add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
-                        st.success("Compra efetuada! O saldo foi abatido e o painel liberado para um novo objetivo.")
+                        
+                        # DISPARA O WHATSAPP DA COMPRA
+                        msg_wa = f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado com sucesso pela comissão técnica."
+                        notificar_whatsapp(wa_num, wa_api, msg_wa)
+                        
+                        st.success("Compra efetuada! O saldo foi abatido.")
                         time.sleep(2)
                         st.rerun()
                 else:
@@ -576,6 +607,11 @@ if TIPO_CONTA == 'pai':
             st.warning("🏁 **Encerrar Temporada** - Congela o saldo e libera a surpresa no app do atleta.")
             if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
                 update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas)
+                
+                # DISPARA O WHATSAPP DO FIM DA TEMPORADA
+                msg_wa = f"⏱️ FIM DE JOGO! A temporada foi encerrada. Acesse o aplicativo para descobrir se você subiu de divisão!"
+                notificar_whatsapp(wa_num, wa_api, msg_wa)
+                
                 st.rerun()
 
     with tab_regras:
@@ -623,9 +659,14 @@ if TIPO_CONTA == 'pai':
             with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
             with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
             
+            st.markdown("**📱 Notificações de WhatsApp (CallMeBot)**")
+            c_wanum, c_waapi = st.columns(2)
+            with c_wanum: wa_cad_num = st.text_input("Número (com código do país, ex: +5511999999999):", placeholder="+55...")
+            with c_waapi: wa_cad_api = st.text_input("API Key do CallMeBot:", placeholder="Ex: 123456")
+            
             if st.button("Cadastrar", type="primary", use_container_width=True):
                 if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
-                    add_jogador(n_nome, ESTILOS_AVATAR[n_avatar], b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
+                    add_jogador(n_nome, ESTILOS_AVATAR[n_avatar], b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, wa_cad_num, wa_cad_api)
                     st.rerun()
                 else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
 
@@ -643,6 +684,11 @@ if TIPO_CONTA == 'pai':
                     with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
                     with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
                     
+                    st.markdown("**📱 Notificações de WhatsApp**")
+                    ce_wanum, ce_waapi = st.columns(2)
+                    with ce_wanum: ed_wa_num = st.text_input("Número WhatsApp (+55...):", value=d_edit[14] if d_edit[14] else "")
+                    with ce_waapi: ed_wa_api = st.text_input("API Key (CallMeBot):", value=d_edit[15] if d_edit[15] else "")
+                    
                     ce_b, ce_i, ce_t, ce_l = st.columns(4)
                     with ce_b: ed_base = st.number_input("Início R$:", value=float(d_edit[6]))
                     with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
@@ -650,7 +696,7 @@ if TIPO_CONTA == 'pai':
                     with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
                     
                     if st.button("💾 Salvar Contrato", use_container_width=True):
-                        edit_jogador(j_edit, ed_nome, d_edit[5], ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
+                        edit_jogador(j_edit, ed_nome, d_edit[5], ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin), ed_wa_num, ed_wa_api)
                         st.rerun()
 
         with sub_del:
