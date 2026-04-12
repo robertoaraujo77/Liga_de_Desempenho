@@ -571,7 +571,12 @@ if TIPO_CONTA == 'pai':
 else: 
     st.sidebar.write(f"⚽ Atleta: **{st.session_state.jogador_atual}**")
 
-if st.sidebar.button("Sair"):
+st.sidebar.markdown("---")
+# NOVO BOTÃO DE ATUALIZAÇÃO RÁPIDA
+if st.sidebar.button("🔄 Atualizar Dados", use_container_width=True):
+    st.rerun()
+
+if st.sidebar.button("🚪 Sair", use_container_width=True):
     st.session_state.autenticado = False
     if 'impersonate' in st.session_state:
         del st.session_state['impersonate']
