@@ -767,6 +767,7 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
+            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
             df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
             timeline = [base_atual]
             curr = base_atual
@@ -827,7 +828,7 @@ if TIPO_CONTA == 'pai':
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
     
-    tab_jogo, tab_configs, tab_elenco = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco"])
+    tab_jogo, tab_configs, tab_elenco, tab_tutorial = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📖 Como Usar"])
     
     with tab_jogo:
         if jogador_selecionado:
@@ -1076,3 +1077,27 @@ if TIPO_CONTA == 'pai':
                     </div>
                 </a>
                 """, unsafe_allow_html=True)
+
+    with tab_tutorial:
+        st.markdown("### 📖 Guia da Comissão Técnica")
+        st.info("**Bem-vindo ao Liga de Desempenho!** Este é o seu manual de como administrar a gamificação da sua casa.")
+        
+        with st.expander("🕵️‍♂️ 1. A Temporada Zero (O Início)", expanded=True):
+            st.write("Quando você cadastra um novo atleta, ele começa na divisão **'Em Avaliação'** com saldo R$ 0,00. Durante os primeiros 30 dias, você aplicará faltas e bônus. No fim do mês, o sistema calculará em qual Divisão ele merece estrear com base no saldo acumulado.")
+            
+        with st.expander("⚖️ 2. Faltas, Bônus e o Limite"):
+            st.write("- **🔴 Faltas:** Descontam do saldo da temporada e aumentam a barra de 'Multas Atuais'. Se a barra estourar o limite que você definiu no contrato, o atleta perde o direito de subir de divisão.")
+            st.write("- **⭐ Bônus (Golaços):** Somam no saldo E diminuem a barra de Multas (Mecânica do Perdão). Se o atleta errou, ele pode recuperar o bom comportamento ajudando em casa!")
+            
+        with st.expander("🏦 3. O Cofre (Banco) e Depósitos Extras"):
+            st.write("O prêmio final (ex: Chuteira Nova) é comprado EXCLUSIVAMENTE com o dinheiro do Banco (o dinheiro guardado de meses anteriores).")
+            st.write("Se o atleta ganhar um dinheiro extra (aniversário, mesada por fora), use a opção **Depósito Extra no Cofre**. Esse dinheiro vai direto para o Banco e não afeta as pontuações do campeonato.")
+            
+        with st.expander("🏁 4. O Fim da Temporada"):
+            st.write("Uma vez por mês, você deve clicar em **Encerrar Temporada**. O que acontece?")
+            st.write("1. O *Saldo da Temporada* atual vira dinheiro de verdade e é depositado no Cofre.")
+            st.write("2. O sistema calcula se ele subiu, manteve ou caiu de Divisão.")
+            st.write("3. O atleta recebe uma notificação e uma 'Caixa Surpresa' no app dele para descobrir o destino!")
+            
+        with st.expander("🛍️ 5. Resgatando o Prêmio"):
+            st.write("Quando o saldo do Banco atingir a meta, o botão de compra ficará verde na sua aba de Lançamentos. Ao clicar, o valor é debitado do Banco e o atleta é avisado do sucesso!")
