@@ -142,6 +142,7 @@ magic_atleta = params.get("atleta")
 if not st.session_state.autenticado:
     st.markdown("<h1 style='text-align: center;'>⚽ Liga de Desempenho ⚽</h1>", unsafe_allow_html=True)
     
+    # Se o atleta entrou pelo Link Mágico
     if magic_equipe and magic_atleta:
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
@@ -151,16 +152,21 @@ if not st.session_state.autenticado:
         """, unsafe_allow_html=True)
         
         st.info("O acesso rápido está ativado pelo seu Link Mágico.")
-        p_atleta_magic = st.text_input("Digite seu PIN de Segurança (4 dígitos):", type="password", max_chars=4)
         
-        if st.button("Entrar em Campo", use_container_width=True, type="primary"):
-            if verificar_login_atleta(magic_equipe, magic_atleta, p_atleta_magic):
-                st.session_state.autenticado = True
-                st.session_state.tipo_conta = 'filho'
-                st.session_state.usuario = str(magic_equipe).strip().lower()
-                st.session_state.jogador_atual = str(magic_atleta).strip()
-                st.rerun()
-            else: st.error("PIN incorreto. Tente novamente.")
+        # FORMULÁRIO DE LOGIN MÁGICO
+        with st.form("form_login_magico"):
+            p_atleta_magic = st.text_input("Digite seu PIN de Segurança (4 dígitos):", type="password", max_chars=4)
+            btn_entrar = st.form_submit_button("Entrar em Campo", use_container_width=True, type="primary")
+            
+            if btn_entrar:
+                if verificar_login_atleta(magic_equipe, magic_atleta, p_atleta_magic):
+                    st.session_state.autenticado = True
+                    st.session_state.tipo_conta = 'filho'
+                    st.session_state.usuario = str(magic_equipe).strip().lower()
+                    st.session_state.jogador_atual = str(magic_atleta).strip()
+                    st.rerun()
+                else: 
+                    st.error("PIN incorreto. Tente novamente.")
             
         if st.button("Acesso da Comissão Técnica (Pais)"):
             st.query_params.clear()
@@ -168,42 +174,54 @@ if not st.session_state.autenticado:
             
         st.stop()
 
+    # Tela de Login Normal (Sem Link Mágico)
     menu_auth = st.tabs(["👔 Comissão Técnica", "⚽ Vestiário", "Criar Liga"])
     
     with menu_auth[0]:
         st.markdown("**Acesso Exclusivo dos Pais**")
-        u_login = st.text_input("E-mail do Responsável:", key="u_login_pai")
-        p_login = st.text_input("Senha Principal:", type="password", key="p_login_pai")
-        if st.button("Entrar no Painel", use_container_width=True, type="primary"):
-            if verificar_login_pai(u_login, p_login):
-                st.session_state.autenticado = True
-                st.session_state.tipo_conta = 'pai'
-                st.session_state.usuario = str(u_login).strip().lower()
-                st.rerun()
-            else: st.error("Usuário ou senha incorretos.")
+        with st.form("form_login_pais"):
+            u_login = st.text_input("E-mail do Responsável:", key="u_login_pai")
+            p_login = st.text_input("Senha Principal:", type="password", key="p_login_pai")
+            btn_login_pai = st.form_submit_button("Entrar no Painel", use_container_width=True, type="primary")
+            if btn_login_pai:
+                if verificar_login_pai(u_login, p_login):
+                    st.session_state.autenticado = True
+                    st.session_state.tipo_conta = 'pai'
+                    st.session_state.usuario = str(u_login).strip().lower()
+                    st.rerun()
+                else: 
+                    st.error("Usuário ou senha incorretos.")
 
     with menu_auth[1]:
         st.markdown("**Acesso do Atleta**")
-        u_resp = st.text_input("E-mail dos seus pais:", key="u_login_filho")
-        n_atleta = st.text_input("Seu Nome no Jogo:", key="n_login_filho")
-        p_atleta = st.text_input("Seu PIN (4 dígitos):", type="password", key="p_login_filho", max_chars=4)
-        if st.button("Entrar em Campo", use_container_width=True, type="primary"):
-            if verificar_login_atleta(u_resp, n_atleta, p_atleta):
-                st.session_state.autenticado = True
-                st.session_state.tipo_conta = 'filho'
-                st.session_state.usuario = str(u_resp).strip().lower()
-                st.session_state.jogador_atual = str(n_atleta).strip()
-                st.rerun()
-            else: st.error("Dados incorretos. Verifique com seu treinador (pais).")
+        with st.form("form_login_atleta"):
+            u_resp = st.text_input("E-mail dos seus pais:", key="u_login_filho")
+            n_atleta = st.text_input("Seu Nome no Jogo:", key="n_login_filho")
+            p_atleta = st.text_input("Seu PIN (4 dígitos):", type="password", key="p_login_filho", max_chars=4)
+            btn_login_atleta = st.form_submit_button("Entrar em Campo", use_container_width=True, type="primary")
+            if btn_login_atleta:
+                if verificar_login_atleta(u_resp, n_atleta, p_atleta):
+                    st.session_state.autenticado = True
+                    st.session_state.tipo_conta = 'filho'
+                    st.session_state.usuario = str(u_resp).strip().lower()
+                    st.session_state.jogador_atual = str(n_atleta).strip()
+                    st.rerun()
+                else: 
+                    st.error("Dados incorretos. Verifique com seu treinador.")
             
     with menu_auth[2]:
-        u_new = st.text_input("E-mail Responsável:", key="u_new")
-        p_new = st.text_input("Crie uma Senha:", type="password", key="p_new")
-        if st.button("Criar Minha Liga", use_container_width=True):
-            if u_new and p_new:
-                if criar_conta(u_new, p_new): st.success("Conta criada! Logue na 'Comissão Técnica'.")
-                else: st.error("Este usuário já existe.")
-            else: st.error("Preencha todos os campos.")
+        with st.form("form_criar_conta"):
+            u_new = st.text_input("E-mail Responsável:", key="u_new")
+            p_new = st.text_input("Crie uma Senha:", type="password", key="p_new")
+            btn_criar = st.form_submit_button("Criar Minha Liga", use_container_width=True)
+            if btn_criar:
+                if u_new and p_new:
+                    if criar_conta(u_new, p_new): 
+                        st.success("Conta criada! Logue na 'Comissão Técnica'.")
+                    else: 
+                        st.error("Este usuário já existe.")
+                else: 
+                    st.error("Preencha todos os campos.")
             
     st.stop()
 
@@ -604,10 +622,10 @@ if TIPO_CONTA == 'pai':
     with tab_jogo:
         if jogador_selecionado:
             st.markdown(f"**🔴 Aplicar Falta em {jogador_selecionado}**")
-            col_infracao, col_btn_add = st.columns([3, 1])
-            with col_infracao: inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()), label_visibility="collapsed")
-            with col_btn_add:
-                if st.button("Aplicar Falta", type="primary", use_container_width=True):
+            with st.form("form_falta", clear_on_submit=True):
+                inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()))
+                btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
+                if btn_aplicar:
                     valor_falta = regras_dinamicas[inf_sel]
                     update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
                     add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
@@ -616,18 +634,16 @@ if TIPO_CONTA == 'pai':
                     
             st.markdown("---")
             st.markdown(f"**⭐ Aplicar Bônus (Golaço) para {jogador_selecionado}**")
-            col_motivo, col_valor, col_btn_bonus = st.columns([2, 1, 1])
-            with col_motivo: m_bonus = st.text_input("Motivo:", placeholder="Ex: Arrumou o quarto")
-            with col_valor: v_bonus = st.number_input("Valor R$", min_value=1.00, step=1.00)
-            with col_btn_bonus:
-                st.markdown("<div style='margin-top: 28px;'>", unsafe_allow_html=True)
-                if st.button("Dar Bônus", use_container_width=True):
+            with st.form("form_bonus", clear_on_submit=True):
+                m_bonus = st.text_input("Motivo:", placeholder="Ex: Arrumou o quarto")
+                v_bonus = st.number_input("Valor R$", min_value=1.00, step=1.00)
+                btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
+                if btn_bonus:
                     if m_bonus:
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas)
                         add_historico(jogador_selecionado, f"⭐ {m_bonus}", v_bonus, 'bonus')
                         add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus}' (+ R$ {v_bonus:.2f}).")
                         st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
                 
             if meta_val > 0 and meta_desc:
                 st.markdown("---")
@@ -649,10 +665,10 @@ if TIPO_CONTA == 'pai':
             df_admin = get_historico_admin(jogador_selecionado)
             if not df_admin.empty:
                 opcoes_falta = {f"{row['data']} | {row['infracao']}": (row['id'], row['desconto'], row['tipo']) for _, row in df_admin.iterrows()}
-                col_remove, col_btn_remove = st.columns([3, 1])
-                with col_remove: f_sel = st.selectbox("Selecione:", list(opcoes_falta.keys()), label_visibility="collapsed")
-                with col_btn_remove:
-                    if st.button("Excluir Item", use_container_width=True):
+                with st.form("form_excluir"):
+                    f_sel = st.selectbox("Selecione:", list(opcoes_falta.keys()), label_visibility="collapsed")
+                    btn_excluir = st.form_submit_button("Excluir Item", use_container_width=True)
+                    if btn_excluir:
                         id_f, v_item, t_item = opcoes_falta[f_sel]
                         delete_specific_historico(jogador_selecionado, id_f, v_item, t_item)
                         st.rerun()
@@ -666,78 +682,86 @@ if TIPO_CONTA == 'pai':
 
     with tab_regras:
         st.markdown("**➕ Criar Nova Regra**")
-        c1, c2, c3 = st.columns([3, 1, 1])
-        with c1: d_regra = st.text_input("Descrição:")
-        with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
-        with c3:
-            st.markdown("<div style='margin-top: 28px;'>", unsafe_allow_html=True)
-            if st.button("Salvar Regra", use_container_width=True) and d_regra:
-                if d_regra not in regras_dinamicas:
+        with st.form("form_criar_regra", clear_on_submit=True):
+            c1, c2 = st.columns([3, 1])
+            with c1: d_regra = st.text_input("Descrição:")
+            with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
+            btn_salvar_regra = st.form_submit_button("Salvar Regra", use_container_width=True)
+            if btn_salvar_regra:
+                if d_regra and d_regra not in regras_dinamicas:
                     add_regra(d_regra, v_regra)
                     st.rerun()
+
         st.markdown("---")
         st.markdown("**✏️ Editar/Excluir Regras**")
         if regras_dinamicas:
-            r_sel = st.selectbox("Editar:", list(regras_dinamicas.keys()), label_visibility="collapsed")
-            c_ed1, c_ed2 = st.columns([3, 1])
-            with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
-            with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
-            c_btn1, c_btn2 = st.columns(2)
-            with c_btn1:
-                if st.button("💾 Atualizar Regra", use_container_width=True):
+            r_sel = st.selectbox("Selecione a regra para editar:", list(regras_dinamicas.keys()))
+            with st.form("form_editar_regra"):
+                c_ed1, c_ed2 = st.columns([3, 1])
+                with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
+                with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
+                c_btn1, c_btn2 = st.columns(2)
+                with c_btn1: btn_update_regra = st.form_submit_button("💾 Atualizar", use_container_width=True)
+                with c_btn2: btn_delete_regra = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+                
+                if btn_update_regra:
                     update_regra(r_sel, n_texto, n_val)
                     st.rerun()
-            with c_btn2:
-                if st.button("🗑️ Excluir Regra", use_container_width=True):
+                elif btn_delete_regra:
                     delete_regra(r_sel)
                     st.rerun()
 
     with tab_elenco:
         sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar", "✏️ Contrato", "❌ Demitir", "🔗 Convite"])
         with sub_cad:
-            n_nome = st.text_input("Nome do Atleta:")
-            n_avatar = st.selectbox("Avatar:", list(ESTILOS_AVATAR.keys()))
-            c_b, c_i, c_t, c_l = st.columns(4)
-            with c_b: b_ini = st.number_input("Início (R$):", value=50.0)
-            with c_i: i_val = st.number_input("Aumento:", value=10.0)
-            with c_t: t_val = st.number_input("Teto:", value=100.0)
-            with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
-            
-            st.markdown("**🔐 Acesso do Atleta e Prêmio**")
-            c_pin, c_mdesc, c_mval = st.columns([1, 2, 1])
-            with c_pin: pin_j = st.text_input("Crie o PIN (4 dig):", max_chars=4, placeholder="Ex: 1234")
-            with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
-            with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
-            
-            if st.button("Cadastrar", type="primary", use_container_width=True):
-                if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
-                    add_jogador(n_nome, ESTILOS_AVATAR[n_avatar], b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
-                    st.rerun()
-                else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
+            with st.form("form_escalar_novo", clear_on_submit=True):
+                n_nome = st.text_input("Nome do Atleta:")
+                n_avatar = st.selectbox("Avatar:", list(ESTILOS_AVATAR.keys()))
+                c_b, c_i, c_t, c_l = st.columns(4)
+                with c_b: b_ini = st.number_input("Início (R$):", value=50.0)
+                with c_i: i_val = st.number_input("Aumento:", value=10.0)
+                with c_t: t_val = st.number_input("Teto:", value=100.0)
+                with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
+                
+                st.markdown("**🔐 Acesso do Atleta e Prêmio**")
+                c_pin, c_mdesc, c_mval = st.columns([1, 2, 1])
+                with c_pin: pin_j = st.text_input("Crie o PIN (4 dig):", max_chars=4, placeholder="Ex: 1234")
+                with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
+                with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
+                
+                btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
+                if btn_cadastrar:
+                    if n_nome and pin_j and len(pin_j) == 4 and t_val > b_ini:
+                        add_jogador(n_nome, ESTILOS_AVATAR[n_avatar], b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val)
+                        st.rerun()
+                    else: st.error("Preencha o Nome, um PIN de 4 dígitos válido e confira os valores.")
 
         with sub_edit:
             if jogadores_ativos:
-                j_edit = st.selectbox("Atleta:", jogadores_ativos, key="sel_edit")
+                # O selectbox de escolher quem editar DEVE ficar fora do form para atualizar os campos abaixo na hora!
+                j_edit = st.selectbox("Escolha o Atleta para ajustar o contrato:", jogadores_ativos, key="sel_edit")
                 d_edit = get_status(j_edit)
                 if d_edit:
-                    ed_nome = st.text_input("Novo Nome:", value=j_edit)
-                    st.caption("Deixe o PIN em branco caso não queira alterar.")
-                    ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
-                    
-                    st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
-                    ce_mdesc, ce_mval = st.columns([2, 1])
-                    with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
-                    with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
-                    
-                    ce_b, ce_i, ce_t, ce_l = st.columns(4)
-                    with ce_b: ed_base = st.number_input("Início R$:", value=float(d_edit[6]))
-                    with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
-                    with ce_t: ed_teto = st.number_input("Teto R$:", value=float(d_edit[8]))
-                    with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
-                    
-                    if st.button("💾 Salvar Contrato", use_container_width=True):
-                        edit_jogador(j_edit, ed_nome, d_edit[5], ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
-                        st.rerun()
+                    with st.form("form_ajustar_contrato"):
+                        ed_nome = st.text_input("Novo Nome:", value=j_edit)
+                        st.caption("Deixe o PIN em branco caso não queira alterar.")
+                        ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
+                        
+                        st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
+                        ce_mdesc, ce_mval = st.columns([2, 1])
+                        with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
+                        with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
+                        
+                        ce_b, ce_i, ce_t, ce_l = st.columns(4)
+                        with ce_b: ed_base = st.number_input("Início R$:", value=float(d_edit[6]))
+                        with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
+                        with ce_t: ed_teto = st.number_input("Teto R$:", value=float(d_edit[8]))
+                        with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
+                        
+                        btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
+                        if btn_salvar_contrato:
+                            edit_jogador(j_edit, ed_nome, d_edit[5], ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin))
+                            st.rerun()
 
         with sub_del:
             if jogadores_ativos:
