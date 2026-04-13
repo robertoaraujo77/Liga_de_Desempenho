@@ -378,7 +378,6 @@ def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel
     return divisoes, div_atual, index_atual
 
 def calcular_badges(df_hist, faltas_atual):
-    # O Robô que distribui as Conquistas
     badges = []
     if df_hist.empty: return badges
     
@@ -413,28 +412,29 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     elif "Rubi" in div_nome: bg_gradient = "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)"
     elif "Em Avaliação" in div_nome: bg_gradient = "linear-gradient(135deg, #4b5563 0%, #1f2937 100%)"
 
-    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else "<div style='display:none;'></div>"
+    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else ""
     
     html_badges = ""
     if badges:
         badges_tags = "".join([f"<span style='background: rgba(255,255,255,0.8); color: #1a1a1a; padding: 3px 6px; border-radius: 10px; margin: 3px 2px; font-size: 10px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'>{b}</span>" for b in badges])
         html_badges = f"<div style='display: flex; flex-wrap: wrap; justify-content: center; margin-top: 8px;'>{badges_tags}</div>"
 
-    st.markdown(f'''
+    card_html = f'''
 <div style="display: flex; justify-content: center; margin-bottom: 15px;">
-    <div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: 10px; left: 15px; text-align: center;">
-            <div style="font-size: 32px; font-weight: 900; line-height: 1;">{score_val}</div>
-            <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">SCORE</div>
-        </div>
-        <img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
-        <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
-        <div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
-        {texto_titulos}
-        {html_badges}
-    </div>
+<div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
+<div style="position: absolute; top: 10px; left: 15px; text-align: center;">
+<div style="font-size: 32px; font-weight: 900; line-height: 1;">{score_val}</div>
+<div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">SCORE</div>
 </div>
-''', unsafe_allow_html=True)
+<img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+<div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
+<div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
+{texto_titulos}
+{html_badges}
+</div>
+</div>
+'''
+    st.markdown(card_html, unsafe_allow_html=True)
 
 # ==========================================
 # POPUPS E ANIMAÇÕES
