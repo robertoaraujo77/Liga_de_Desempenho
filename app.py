@@ -19,37 +19,19 @@ SUPER_ADMIN = "robertojr1990@gmail.com"
 # ==========================================
 st.set_page_config(page_title="Liga de Desempenho", page_icon="🏆", layout="centered")
 
+# SEM ESPAÇOS NO INÍCIO PARA NÃO BUGAR O MARKDOWN
 st.markdown("""
-    <link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
-    <style>
-    /* Ajustes para Celular e Quebra de Linha nas Abas */
-    button[data-baseweb="tab"] {
-        white-space: nowrap !important;
-        font-size: 14px !important;
-    }
-    
-    /* NOVO: Classe para Títulos Inteligentes */
-    .titulo-responsivo {
-        font-size: 32px;
-        font-weight: bold;
-        margin-top: 10px;
-        margin-bottom: 10px;
-    }
-    
-    @media (max-width: 768px) {
-        h1 { font-size: 1.6rem !important; }
-        
-        /* NOVO: Encolhe o título no celular para não quebrar a linha */
-        .titulo-responsivo { font-size: 20px !important; } 
-        
-        [data-testid="stMetricValue"] { font-size: 1.8rem !important; }
-        button[data-baseweb="tab"] { 
-            font-size: 11px !important; 
-            padding: 8px 10px !important; 
-            margin-right: 0px !important;
-        }
-    }
-    </style>
+<link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
+<style>
+button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; }
+.titulo-responsivo { font-size: 32px; font-weight: bold; margin-top: 10px; margin-bottom: 10px; }
+@media (max-width: 768px) {
+h1 { font-size: 1.6rem !important; }
+.titulo-responsivo { font-size: 20px !important; } 
+[data-testid="stMetricValue"] { font-size: 1.8rem !important; }
+button[data-baseweb="tab"] { font-size: 11px !important; padding: 8px 10px !important; margin-right: 0px !important; }
+}
+</style>
 """, unsafe_allow_html=True)
 
 PEDRAS = ["Ouro 🥇", "Prata 🥈", "Bronze 🥉", "Diamante 💎", "Alexandrita 💠", "Painite 🩸", "Musgravite 🪨", "Opala Negra 🌌", "Esmeralda 🟩", "Rubi 🔴", "Safira 🔷", "Tanzanita 🪻", "Turmalina 🍉", "Topázio 🔶", "Jade 🟢"]
@@ -182,7 +164,7 @@ def verificar_login_atleta(user, nome_atleta, pin_digitado):
 
 # --- FUNÇÕES DE REGRAS E BÔNUS (DINÂMICAS) ---
 def get_regras():
-    df = conn.query('SELECT descricao, valor FROM regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=0)
+    df = conn.query('SELECT descricao, valor FROM regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=1)
     res = list(df.itertuples(index=False, name=None))
     def sort_key(item):
         texto = item[0]
@@ -206,7 +188,7 @@ def delete_regra(descricao):
         s.commit()
 
 def get_bonus_regras():
-    df = conn.query('SELECT descricao, valor FROM bonus_regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=0)
+    df = conn.query('SELECT descricao, valor FROM bonus_regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=1)
     if df.empty:
         with conn.session as s:
             s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(USER_LOGADO))
@@ -320,7 +302,8 @@ def get_historico(jogador):
     return conn.query('SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
 
 def get_historico_admin(jogador):
-    return conn.query('SELECT id, data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
+    # O Ponto Central de Carregamento para o Banco de Dados!
+    return conn.query('SELECT id, data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=1)
 
 def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
@@ -467,13 +450,13 @@ def mostrar_popup(titulo, mensagem, cor, emoji):
     aviso = st.empty()
     with aviso.container():
         st.markdown(f"""
-            <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.85); z-index: 999999; display: flex; justify-content: center; align-items: center;">
-                <div style="background-color: #1e1e1e; padding: 40px 60px; border-radius: 20px; text-align: center; border: 3px solid {cor}; box-shadow: 0 10px 40px rgba(0,0,0,0.9); max-width: 80%;">
-                    <div style="font-size: 80px; margin-bottom: 10px;">{emoji}</div>
-                    <h1 style="color: {cor}; margin: 0; font-size: 32px; font-weight: bold;">{titulo}</h1>
-                    <p style="color: #ffffff; font-size: 20px; margin-top: 15px;">{mensagem}</p>
-                </div>
-            </div>
+<div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.85); z-index: 999999; display: flex; justify-content: center; align-items: center;">
+<div style="background-color: #1e1e1e; padding: 40px 60px; border-radius: 20px; text-align: center; border: 3px solid {cor}; box-shadow: 0 10px 40px rgba(0,0,0,0.9); max-width: 80%;">
+<div style="font-size: 80px; margin-bottom: 10px;">{emoji}</div>
+<h1 style="color: {cor}; margin: 0; font-size: 32px; font-weight: bold;">{titulo}</h1>
+<p style="color: #ffffff; font-size: 20px; margin-top: 15px;">{mensagem}</p>
+</div>
+</div>
         """, unsafe_allow_html=True)
     time.sleep(5)
     aviso.empty()
@@ -513,10 +496,10 @@ if not st.session_state.autenticado:
     
     if magic_equipe and magic_atleta:
         st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
-                <h2 style="color: white; margin:0;">Vestiário</h2>
-                <h4 style="color: #e2e8f0; margin-top:5px;">Bem-vindo, {magic_atleta}!</h4>
-            </div>
+<div style="background: linear-gradient(135deg, #1488cc, #2b32b2); padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
+<h2 style="color: white; margin:0;">Vestiário</h2>
+<h4 style="color: #e2e8f0; margin-top:5px;">Bem-vindo, {magic_atleta}!</h4>
+</div>
         """, unsafe_allow_html=True)
         
         st.info("O acesso rápido está ativado pelo seu Link Mágico.")
@@ -672,7 +655,7 @@ if st.sidebar.button("🚪 Sair", use_container_width=True):
     st.rerun()
 
 # ==========================================
-# INTERFACE PRINCIPAL
+# INTERFACE PRINCIPAL E OTIMIZAÇÃO DE BANCO
 # ==========================================
 jogadores_ativos = get_jogadores()
 jogador_selecionado = None
@@ -695,9 +678,13 @@ if jogador_selecionado:
         nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, poupanca = dados_jogador
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel_atual)
         
-        # GERAR BADGES
-        df_hist_badges = get_historico(jogador_selecionado)
-        badges_atleta = calcular_badges(df_hist_badges, faltas_atual)
+        # CARREGAMENTO CENTRALIZADO (Evita Timeout no Supabase reduzindo queries)
+        df_historico_full = get_historico_admin(jogador_selecionado)
+        dict_regras_global = get_regras()
+        dict_bonus_global = get_bonus_regras()
+        
+        # GERAR BADGES (Agora usa o histórico que já carregamos da memória)
+        badges_atleta = calcular_badges(df_historico_full, faltas_atual)
 
         # --- LÓGICA DO BOTÃO SURPRESA (SÓ PARA O ATLETA) ---
         if aguardando_resgate == 1 and TIPO_CONTA == 'filho':
@@ -706,9 +693,8 @@ if jogador_selecionado:
             st.markdown("<h3 style='text-align: center;'>Chegou a hora de descobrir o seu destino...</h3><br>", unsafe_allow_html=True)
             
             if st.button("🎁 CLIQUE AQUI PARA VER SEU RESULTADO", type="primary", use_container_width=True):
-                df_historico = get_historico(jogador_selecionado)
                 teve_vermelho = False
-                if not df_historico.empty: teve_vermelho = any("Cartão Vermelho" in str(inf) for inf in df_historico['infracao'])
+                if not df_historico_full.empty: teve_vermelho = any("Cartão Vermelho" in str(inf) for inf in df_historico_full['infracao'])
 
                 nova_poupanca = poupanca + saldo_atual
 
@@ -774,9 +760,9 @@ if jogador_selecionado:
             notificacoes_ativas = get_notificacoes_nao_lidas(jogador_selecionado, USER_LOGADO)
             if not notificacoes_ativas.empty:
                 st.markdown("""
-                <div style="background-color: #ff4b4b; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #fff; box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);">
-                    <h4 style="color: white; margin: 0; text-align: center;">🔔 MENSAGENS DO ÁRBITRO</h4>
-                </div>
+<div style="background-color: #ff4b4b; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #fff; box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);">
+<h4 style="color: white; margin: 0; text-align: center;">🔔 MENSAGENS DO ÁRBITRO</h4>
+</div>
                 """, unsafe_allow_html=True)
                 
                 for _, notif in notificacoes_ativas.iterrows():
@@ -802,12 +788,12 @@ if jogador_selecionado:
             progresso_meta = min((poupanca / meta_val) * 100, 100) if meta_val > 0 else 0
             st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
             st.markdown(f"""
-                <div style="background-color: #1a1a1a; border-radius: 10px; width: 100%; height: 22px; margin-bottom: 5px; border: 1px solid #333; position: relative;">
-                    <div style="background: linear-gradient(90deg, #1488cc, #2b32b2); width: {progresso_meta}%; height: 100%; border-radius: 10px; transition: width 0.8s;"></div>
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 12px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">
-                        {progresso_meta:.1f}% Concluído
-                    </div>
-                </div>
+<div style="background-color: #1a1a1a; border-radius: 10px; width: 100%; height: 22px; margin-bottom: 5px; border: 1px solid #333; position: relative;">
+<div style="background: linear-gradient(90deg, #1488cc, #2b32b2); width: {progresso_meta}%; height: 100%; border-radius: 10px; transition: width 0.8s;"></div>
+<div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 12px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">
+{progresso_meta:.1f}% Concluído
+</div>
+</div>
             """, unsafe_allow_html=True)
             if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
             else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
@@ -828,8 +814,12 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
-            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
-            df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
+            # Para o Gráfico da temporada, agora usamos a base carregada na memória!
+            if not df_historico_full.empty:
+                df_hist_asc = df_historico_full[df_historico_full['tipo'].isin(['bonus', 'falta'])].sort_values(by='id', ascending=True)
+            else:
+                df_hist_asc = pd.DataFrame()
+                
             timeline = [base_atual]
             curr = base_atual
             for _, row in df_hist_asc.iterrows():
@@ -843,9 +833,8 @@ if jogador_selecionado:
             st.line_chart(timeline, height=150)
 
             st.markdown("### 📋 Extrato de Lançamentos")
-            df_historico = get_historico(jogador_selecionado)
-            if not df_historico.empty:
-                df_view = df_historico.copy()
+            if not df_historico_full.empty:
+                df_view = df_historico_full.copy()
                 df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
                 
                 # NOVO: Filtro Mensal
@@ -872,20 +861,17 @@ if jogador_selecionado:
             st.markdown("### 📖 Manual do Atleta")
             st.caption("Consulte a tabela oficial para saber como faturar mais e evitar punições.")
             
-            regras_lista = get_regras()
-            bonus_lista = get_bonus_regras()
-            
             st.markdown("#### ⭐ Golaços (Como ganhar)")
-            if bonus_lista:
-                df_b = pd.DataFrame(list(bonus_lista.items()), columns=["Ação", "Recompensa"])
+            if dict_bonus_global:
+                df_b = pd.DataFrame(list(dict_bonus_global.items()), columns=["Ação", "Recompensa"])
                 df_b["Recompensa"] = df_b["Recompensa"].apply(lambda x: f"+ R$ {x:.2f}".replace('.', ','))
                 st.dataframe(df_b, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum bônus cadastrado no momento.")
                 
             st.markdown("#### 🔴 Faltas (O que evitar)")
-            if regras_lista:
-                df_r = pd.DataFrame(list(regras_lista.items()), columns=["Infração", "Multa"])
+            if dict_regras_global:
+                df_r = pd.DataFrame(list(dict_regras_global.items()), columns=["Infração", "Multa"])
                 df_r["Multa"] = df_r["Multa"].apply(lambda x: f"- R$ {x:.2f}".replace('.', ','))
                 st.dataframe(df_r, use_container_width=True, hide_index=True)
             else:
@@ -898,8 +884,9 @@ if TIPO_CONTA == 'pai':
     st.markdown("---")
     st.markdown("<div class='titulo-responsivo'>📋 Área da Comissão Técnica</div>", unsafe_allow_html=True)
     
-    regras_dinamicas = get_regras()
-    bonus_dinamicos = get_bonus_regras()
+    # Usa a memória carregada no início para não estressar o banco
+    regras_dinamicas = dict_regras_global
+    bonus_dinamicos = dict_bonus_global
     
     tab_jogo, tab_configs, tab_elenco, tab_tutorial, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📖 Como Usar", "📊 Raio-X"])
     
@@ -967,9 +954,8 @@ if TIPO_CONTA == 'pai':
                     
             st.markdown("---")
             st.markdown("**🗑️ Excluir Lançamento Errado**")
-            df_admin = get_historico_admin(jogador_selecionado)
-            if not df_admin.empty:
-                opcoes_falta = {f"{row['data']} | {row['infracao']}": (row['id'], row['desconto'], row['tipo']) for _, row in df_admin.iterrows()}
+            if not df_historico_full.empty:
+                opcoes_falta = {f"{row['data']} | {row['infracao']}": (row['id'], row['desconto'], row['tipo']) for _, row in df_historico_full.iterrows()}
                 with st.form("form_excluir"):
                     f_sel = st.selectbox("Selecione:", list(opcoes_falta.keys()), label_visibility="collapsed")
                     btn_excluir = st.form_submit_button("Excluir Item", use_container_width=True)
@@ -1160,14 +1146,14 @@ if TIPO_CONTA == 'pai':
                 url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
                 
                 st.markdown(f"""
-                <a href="{url_wa}" target="_blank" style="text-decoration: none;">
-                    <div style="background-color: #25D366; color: white; padding: 12px 20px; border-radius: 8px; text-align: center; font-size: 16px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16">
-                          <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.49.652.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
-                        </svg>
-                        Enviar convite pelo WhatsApp
-                    </div>
-                </a>
+<a href="{url_wa}" target="_blank" style="text-decoration: none;">
+<div style="background-color: #25D366; color: white; padding: 12px 20px; border-radius: 8px; text-align: center; font-size: 16px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16">
+<path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.49.652.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+</svg>
+Enviar convite pelo WhatsApp
+</div>
+</a>
                 """, unsafe_allow_html=True)
 
     with tab_tutorial:
@@ -1199,10 +1185,9 @@ if TIPO_CONTA == 'pai':
         st.caption("Acompanhe os gráficos de comportamento para entender os pontos fortes e os pontos de melhoria no dia a dia.")
         
         if jogador_selecionado:
-            df_hist_an = get_historico_admin(jogador_selecionado)
-            if not df_hist_an.empty:
-                df_faltas = df_hist_an[df_hist_an['tipo'] == 'falta']
-                df_bonus = df_hist_an[df_hist_an['tipo'] == 'bonus']
+            if not df_historico_full.empty:
+                df_faltas = df_historico_full[df_historico_full['tipo'] == 'falta']
+                df_bonus = df_historico_full[df_historico_full['tipo'] == 'bonus']
                 
                 colA, colB = st.columns(2)
                 with colA:
