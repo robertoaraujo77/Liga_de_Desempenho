@@ -411,6 +411,8 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     elif "Bronze" in div_nome: bg_gradient = "linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #8b4513 100%)"
     elif "Diamante" in div_nome: bg_gradient = "linear-gradient(135deg, #b9f2ff 0%, #6dd5ed 50%, #2193b0 100%)"
     elif "Alexandrita" in div_nome: bg_gradient = "linear-gradient(135deg, #8A2BE2 0%, #4B0082 100%)"
+    elif "Esmeralda" in div_nome: bg_gradient = "linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%)"
+    elif "Rubi" in div_nome: bg_gradient = "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)"
     elif "Em Avaliação" in div_nome: bg_gradient = "linear-gradient(135deg, #4b5563 0%, #1f2937 100%)"
 
     texto_titulos = f"<div style='font-size: 10px; color: #1a1a1a; margin-bottom: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px 8px; border-radius: 4px; display: inline-block;'>🏆 {titulos}x CAMPEÃO</div>" if titulos > 0 else ""
@@ -421,23 +423,22 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
         badges_tags = "".join([f"<div style='background: rgba(255,255,255,0.8); color: #1a1a1a; padding: 2px 6px; border-radius: 3px; margin: 2px 0; font-size: 9px; font-weight: 900; text-transform: uppercase; width: fit-content; border: 1px solid rgba(0,0,0,0.1);'>{b}</div>" for b in badges])
         html_badges = f"<div style='margin-top: 5px; display: flex; flex-direction: column; gap: 2px;'>{badges_tags}</div>"
 
-    # Layout Horizontal
+    # Layout Horizontal alinhado à esquerda para evitar o bug do Markdown
     card_html = f'''
 <div style="background: {bg_gradient}; border-radius: 15px; padding: 15px; color: #1a1a1a; box-shadow: 0 6px 12px rgba(0,0,0,0.4); border: 2px solid #fff; display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden; margin-bottom: 20px;">
-    <div style="text-align: center; min-width: 90px;">
-        <div style="background: #1a1a1a; color: white; border-radius: 8px; padding: 2px 5px; position: absolute; top: 10px; left: 10px; z-index: 10;">
-            <div style="font-size: 18px; font-weight: 900; line-height: 1;">{score_val}</div>
-            <div style="font-size: 7px; font-weight: bold; text-transform: uppercase;">SCORE</div>
-        </div>
-        <img src="{img_src}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
-    </div>
-    
-    <div style="flex-grow: 1;">
-        <div style="font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">{nome_jogador}</div>
-        <div style="font-size: 12px; font-weight: 700; color: rgba(0,0,0,0.7); margin-bottom: 8px;">{div_nome}</div>
-        {texto_titulos}
-        {html_badges}
-    </div>
+<div style="text-align: center; min-width: 90px;">
+<div style="background: #1a1a1a; color: white; border-radius: 8px; padding: 2px 5px; position: absolute; top: 10px; left: 10px; z-index: 10;">
+<div style="font-size: 18px; font-weight: 900; line-height: 1;">{score_val}</div>
+<div style="font-size: 7px; font-weight: bold; text-transform: uppercase;">SCORE</div>
+</div>
+<img src="{img_src}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+</div>
+<div style="flex-grow: 1;">
+<div style="font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">{nome_jogador}</div>
+<div style="font-size: 12px; font-weight: 700; color: rgba(0,0,0,0.7); margin-bottom: 8px;">{div_nome}</div>
+{texto_titulos}
+{html_badges}
+</div>
 </div>
 '''
     st.markdown(card_html, unsafe_allow_html=True)
