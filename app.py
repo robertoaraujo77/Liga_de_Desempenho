@@ -136,7 +136,10 @@ def init_db():
         '''))
         s.commit()
 
-init_db()
+# TRAVA DE SEGURANÇA: Garante que o banco seja inicializado/limpo apenas 1x ao carregar
+if 'db_iniciado' not in st.session_state:
+    init_db()
+    st.session_state.db_iniciado = True
 
 # --- LÓGICA DE AUTENTICAÇÃO E REGRAS PADRÃO ---
 def criar_conta(user, pw):
@@ -879,7 +882,7 @@ if jogador_selecionado:
 # ==========================================
 if TIPO_CONTA == 'pai':
     st.markdown("---")
-    st.markdown("### 📋 Painel da Comissão Técnica")
+    st.markdown("<h3 style='font-size: 32px;'>📋 Painel da Comissão Técnica</h3>", unsafe_allow_html=True)
     
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
