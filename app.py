@@ -26,8 +26,13 @@ st.markdown("""
 button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; }
 .titulo-responsivo { font-size: 32px; font-weight: bold; margin-top: 10px; margin-bottom: 10px; }
 @media (max-width: 768px) {
-h1 { font-size: 1.6rem !important; }
+/* NOVO: Força todos os tamanhos de títulos a diminuírem no celular proporcionalmente */
+h1 { font-size: 24px !important; }
+h2 { font-size: 22px !important; }
+h3 { font-size: 20px !important; }
+h4 { font-size: 18px !important; }
 .titulo-responsivo { font-size: 20px !important; } 
+
 [data-testid="stMetricValue"] { font-size: 1.8rem !important; }
 button[data-baseweb="tab"] { font-size: 11px !important; padding: 8px 10px !important; margin-right: 0px !important; }
 }
