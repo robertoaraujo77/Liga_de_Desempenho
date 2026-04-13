@@ -76,8 +76,7 @@ def obter_bonus_padrao(usuario):
         {"u": usuario, "d": "🏅 Atleta Disciplinado (Semana Perfeita)", "v": 15.0},
         {"u": usuario, "d": "⚽ Destaque e Raça no Treino/Jogo", "v": 5.0},
         {"u": usuario, "d": "😴 Foi dormir no horário sem enrolar", "v": 2.0},
-        {"u": usuario, "d": "🥅 Fez gol no jogo", "v": 2.0},
-        {"u": usuario, "d": "👩🏻‍🦯 Passar Aspirador em Casa", "v": 2.0}
+        {"u": usuario, "d": "🥅 Fez gol no jogo", "v": 2.0}
     ]
 
 # ==========================================
@@ -595,6 +594,30 @@ TIPO_CONTA = st.session_state.tipo_conta
 if TIPO_CONTA == 'pai': 
     st.sidebar.write(f"👔 Comissão: **{USER_LOGADO}**")
     
+    # NOVO: Guia de Uso movido para a Sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📖 Guia Rápido")
+    
+    with st.sidebar.expander("🕵️‍♂️ 1. Temporada Zero"):
+        st.write("Quando você cadastra um novo atleta, ele começa na divisão **'Em Avaliação'** com saldo R$ 0,00 se a caixa de 'Temporada Zero' estiver marcada. Durante os primeiros 30 dias, você aplicará faltas e bônus. No fim do mês, o sistema usará o **Piso, Aumento e Teto** que você definiu no cadastro para calcular em qual Divisão ele merece estrear!")
+        
+    with st.sidebar.expander("⚖️ 2. Faltas e Bônus"):
+        st.write("- **🔴 Faltas:** Descontam do saldo da temporada e aumentam a barra de 'Multas Atuais'. Se a barra estourar o limite que você definiu no contrato, o atleta perde o direito de subir de divisão.")
+        st.write("- **⭐ Bônus (Golaços):** Somam no saldo E diminuem a barra de Multas (Mecânica do Perdão). Se o atleta errou, ele pode recuperar o bom comportamento ajudando em casa!")
+        
+    with st.sidebar.expander("🏦 3. Cofre e Depósitos"):
+        st.write("O prêmio final (ex: Chuteira Nova) é comprado EXCLUSIVAMENTE com o dinheiro do Banco (o dinheiro guardado de meses anteriores).")
+        st.write("Se o atleta ganhar um dinheiro extra (aniversário, mesada por fora), use a opção **Depósito Extra no Cofre**. Esse dinheiro vai direto para o Banco e não afeta as pontuações do campeonato.")
+        
+    with st.sidebar.expander("🏁 4. Fim da Temporada"):
+        st.write("Uma vez por mês, você deve clicar em **Encerrar Temporada**. O que acontece?")
+        st.write("1. O *Saldo da Temporada* atual vira dinheiro de verdade e é depositado no Cofre.")
+        st.write("2. O sistema calcula se ele subiu, manteve ou caiu de Divisão.")
+        st.write("3. O atleta recebe uma notificação e uma 'Caixa Surpresa' no app dele para descobrir o destino!")
+        
+    with st.sidebar.expander("🛍️ 5. Resgatando Prêmio"):
+        st.write("Quando o saldo do Banco atingir a meta, o botão de compra ficará verde na sua aba de Lançamentos. Ao clicar, o valor é debitado do Banco e o atleta é avisado do sucesso!")
+    
     if st.session_state.usuario == SUPER_ADMIN:
         st.sidebar.markdown("---")
         st.sidebar.markdown("⚡ **MODO GOD**")
@@ -894,7 +917,8 @@ if TIPO_CONTA == 'pai':
     regras_dinamicas = dict_regras_global
     bonus_dinamicos = dict_bonus_global
     
-    tab_jogo, tab_configs, tab_elenco, tab_tutorial, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📖 Como Usar", "📊 Raio-X"])
+    # REMOVIDA A ABA 'Como Usar' DAQUI
+    tab_jogo, tab_configs, tab_elenco, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📊 Raio-X"])
     
     with tab_jogo:
         if jogador_selecionado:
@@ -1161,30 +1185,6 @@ Enviar convite pelo WhatsApp
 </div>
 </a>
                 """, unsafe_allow_html=True)
-
-    with tab_tutorial:
-        st.markdown("### 📖 Guia da Comissão Técnica")
-        st.info("**Bem-vindo ao Liga de Desempenho!** Este é o seu manual de como administrar a gamificação da sua casa.")
-        
-        with st.expander("🕵️‍♂️ 1. A Temporada Zero (O Início)", expanded=True):
-            st.write("Quando você cadastra um novo atleta, ele começa na divisão **'Em Avaliação'** com saldo R$ 0,00 se a caixa de 'Temporada Zero' estiver marcada. Durante os primeiros 30 dias, você aplicará faltas e bônus. No fim do mês, o sistema usará o **Piso, Aumento e Teto** que você definiu no cadastro para calcular em qual Divisão ele merece estrear!")
-            
-        with st.expander("⚖️ 2. Faltas, Bônus e o Limite"):
-            st.write("- **🔴 Faltas:** Descontam do saldo da temporada e aumentam a barra de 'Multas Atuais'. Se a barra estourar o limite que você definiu no contrato, o atleta perde o direito de subir de divisão.")
-            st.write("- **⭐ Bônus (Golaços):** Somam no saldo E diminuem a barra de Multas (Mecânica do Perdão). Se o atleta errou, ele pode recuperar o bom comportamento ajudando em casa!")
-            
-        with st.expander("🏦 3. O Cofre (Banco) e Depósitos Extras"):
-            st.write("O prêmio final (ex: Chuteira Nova) é comprado EXCLUSIVAMENTE com o dinheiro do Banco (o dinheiro guardado de meses anteriores).")
-            st.write("Se o atleta ganhar um dinheiro extra (aniversário, mesada por fora), use a opção **Depósito Extra no Cofre**. Esse dinheiro vai direto para o Banco e não afeta as pontuações do campeonato.")
-            
-        with st.expander("🏁 4. O Fim da Temporada"):
-            st.write("Uma vez por mês, você deve clicar em **Encerrar Temporada**. O que acontece?")
-            st.write("1. O *Saldo da Temporada* atual vira dinheiro de verdade e é depositado no Cofre.")
-            st.write("2. O sistema calcula se ele subiu, manteve ou caiu de Divisão.")
-            st.write("3. O atleta recebe uma notificação e uma 'Caixa Surpresa' no app dele para descobrir o destino!")
-            
-        with st.expander("🛍️ 5. Resgatando o Prêmio"):
-            st.write("Quando o saldo do Banco atingir a meta, o botão de compra ficará verde na sua aba de Lançamentos. Ao clicar, o valor é debitado do Banco e o atleta é avisado do sucesso!")
 
     with tab_analytics:
         st.markdown("### 📊 Raio-X do Atleta")
