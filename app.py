@@ -879,7 +879,8 @@ if jogador_selecionado:
 # ==========================================
 if TIPO_CONTA == 'pai':
     st.markdown("---")
-    st.markdown("### 📋 Painel da Comissão Técnica")
+    # Aqui você define o tamanho exato em pixels (ex: 32px)
+    st.markdown("<h3 style='font-size: 32px;'>📋 Painel da Comissão Técnica</h3>", unsafe_allow_html=True)
     
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
