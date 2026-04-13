@@ -68,14 +68,15 @@ def obter_regras_padrao(usuario):
 def obter_bonus_padrao(usuario):
     return [
         {"u": usuario, "d": "🍽️ Ajudou a lavar a louça", "v": 3.0},
-        {"u": usuario, "d": "🧹 Ajudou na limpeza da casa", "v": 10.0},
+        {"u": usuario, "d": "🧹 Ajudou na limpeza da casa", "v": 5.0},
         {"u": usuario, "d": "🛏️ Arrumou a cama cedo", "v": 2.0},
         {"u": usuario, "d": "🥗 Comeu toda a salada/verdura", "v": 2.0},
         {"u": usuario, "d": "🌟 Elogio na escola", "v": 5.0},
         {"u": usuario, "d": "📖 Leu um livro (30 min)", "v": 5.0},
-        {"u": usuario, "d": "🏅 Atleta Disciplinado (Semana Perfeita)", "v": 15.0},
+        {"u": usuario, "d": "🏅 Atleta Disciplinado (Semana Perfeita)", "v": 10.0},
         {"u": usuario, "d": "⚽ Destaque e Raça no Treino/Jogo", "v": 5.0},
         {"u": usuario, "d": "😴 Foi dormir no horário sem enrolar", "v": 2.0},
+        {"u": usuario, "d": "👩🏻‍🦯 Passou aspirador em casa", "v": 1.0},
         {"u": usuario, "d": "🥅 Fez gol no jogo", "v": 2.0}
     ]
 
