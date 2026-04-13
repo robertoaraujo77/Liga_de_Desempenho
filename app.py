@@ -27,8 +27,21 @@ st.markdown("""
         white-space: nowrap !important;
         font-size: 14px !important;
     }
+    
+    /* NOVO: Classe para Títulos Inteligentes */
+    .titulo-responsivo {
+        font-size: 32px;
+        font-weight: bold;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    
     @media (max-width: 768px) {
         h1 { font-size: 1.6rem !important; }
+        
+        /* NOVO: Encolhe o título no celular para não quebrar a linha */
+        .titulo-responsivo { font-size: 20px !important; } 
+        
         [data-testid="stMetricValue"] { font-size: 1.8rem !important; }
         button[data-baseweb="tab"] { 
             font-size: 11px !important; 
@@ -363,7 +376,8 @@ def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel
         valor = base_inicial + (i * inc)
         num_divisao = qtd_divisoes - i
         pedra_idx = min(num_divisao - 1, len(PEDRAS) - 1)
-        divisoes.append({"nome": f"{num_divisao}ª Divisão - {PEDRAS[pedra_idx]}", "valor": valor, "num_divisao": num_divisao})
+        divisao_nome = f"{num_divisao}ª Divisão - {PEDRAS[pedra_idx]}"
+        divisoes.append({"nome": divisao_nome, "valor": valor, "num_divisao": num_divisao})
 
     divisoes = sorted(divisoes, key=lambda x: x["valor"])
     
@@ -882,7 +896,7 @@ if jogador_selecionado:
 # ==========================================
 if TIPO_CONTA == 'pai':
     st.markdown("---")
-    st.markdown("<h3 style='font-size: 32px;'>📋 Área da Comissão Técnica</h3>", unsafe_allow_html=True)
+    st.markdown("<div class='titulo-responsivo'>📋 Área da Comissão Técnica</div>", unsafe_allow_html=True)
     
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
@@ -916,7 +930,7 @@ if TIPO_CONTA == 'pai':
                         v_bonus = bonus_dinamicos[m_bonus_sel]
                         novas_faltas = max(0.0, faltas_atual - v_bonus)
                         update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                        add_historico(jogador_selecionado, f"⭐ {m_bonus_sel}", v_bonus, 'bonus')
+                        add_historico(jogador_selecionado, m_bonus_sel, v_bonus, 'bonus')
                         add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}). A barra de faltas diminuiu!")
                         st.rerun()
                 else:
