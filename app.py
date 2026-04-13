@@ -123,7 +123,7 @@ def init_db():
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
         
-        # Faxina de Clones (Mantida por segurança)
+        # Faxina de Clones
         s.execute(text('''
             DELETE FROM regras WHERE id IN (
                 SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY usuario, descricao ORDER BY id DESC) as rn FROM regras) t WHERE t.rn > 1
@@ -377,7 +377,25 @@ def get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel
 
     return divisoes, div_atual, index_atual
 
-def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos):
+def calcular_badges(df_hist, faltas_atual):
+    # O Robô que distribui as Conquistas
+    badges = []
+    if df_hist.empty: return badges
+    
+    infracoes_str = df_hist['infracao'].astype(str).str.lower()
+    
+    gols = infracoes_str.str.contains('gol').sum()
+    ajudas = infracoes_str.str.contains('louça|limpeza|cama|lixo|casa').sum()
+    estudos = infracoes_str.str.contains('livro|escola|lição').sum()
+    
+    if gols >= 1: badges.append("⚽ Artilheiro")
+    if ajudas >= 3: badges.append("🧹 Ajudante")
+    if estudos >= 2: badges.append("📚 Estudioso")
+    if faltas_atual == 0.0 and len(df_hist) >= 3: badges.append("🛡️ Intacto")
+    
+    return badges
+
+def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos, badges=[]):
     img_src = estilo_avatar if estilo_avatar.startswith("data:image") else f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
     score_val = 99
     bonus_acumulado = max(0, saldo - (base - faltas))
@@ -396,6 +414,11 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     elif "Em Avaliação" in div_nome: bg_gradient = "linear-gradient(135deg, #4b5563 0%, #1f2937 100%)"
 
     texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else "<div style='display:none;'></div>"
+    
+    html_badges = ""
+    if badges:
+        badges_tags = "".join([f"<span style='background: rgba(255,255,255,0.8); color: #1a1a1a; padding: 3px 6px; border-radius: 10px; margin: 3px 2px; font-size: 10px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'>{b}</span>" for b in badges])
+        html_badges = f"<div style='display: flex; flex-wrap: wrap; justify-content: center; margin-top: 8px;'>{badges_tags}</div>"
 
     st.markdown(f'''
 <div style="display: flex; justify-content: center; margin-bottom: 15px;">
@@ -408,6 +431,7 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
         <div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
         <div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
         {texto_titulos}
+        {html_badges}
     </div>
 </div>
 ''', unsafe_allow_html=True)
@@ -647,9 +671,13 @@ if jogador_selecionado:
         nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, poupanca = dados_jogador
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel_atual)
         
+        # GERAR BADGES
+        df_hist_badges = get_historico(jogador_selecionado)
+        badges_atleta = calcular_badges(df_hist_badges, faltas_atual)
+
         # --- LÓGICA DO BOTÃO SURPRESA (SÓ PARA O ATLETA) ---
         if aguardando_resgate == 1 and TIPO_CONTA == 'filho':
-            render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
+            render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos, badges_atleta)
             st.info(f"🚨 **Atenção {jogador_selecionado}!** A comissão técnica encerrou a temporada.")
             st.markdown("<h3 style='text-align: center;'>Chegou a hora de descobrir o seu destino...</h3><br>", unsafe_allow_html=True)
             
@@ -710,7 +738,7 @@ if jogador_selecionado:
             st.stop()
             
         elif aguardando_resgate == 1 and TIPO_CONTA == 'pai':
-            render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
+            render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos, badges_atleta)
             st.warning("⏳ **Temporada Encerrada!** O botão surpresa está esperando o atleta lá no vestiário.")
             if st.button("❌ Cancelar Fim de Temporada (Reabrir Mês)", use_container_width=True):
                 update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
@@ -739,7 +767,7 @@ if jogador_selecionado:
                 st.markdown("---")
 
         # --- TELA NORMAL DO JOGADOR ---
-        render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos)
+        render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos, badges_atleta)
         
         # O BANCO E O SALDO SEPARADOS
         st.markdown(f"<h3 style='text-align: center; color: #28a745; margin-top: -10px;'>💰 Cofre (Banco): R$ {poupanca:.2f}</h3>".replace('.', ','), unsafe_allow_html=True)
@@ -776,6 +804,7 @@ if jogador_selecionado:
             st.markdown(f"**Tolerância de Faltas:**")
             st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
+            # Para o Gráfico da temporada, a gente filtra apenas os Bônus e Faltas (Ignora depósitos bancários avulsos)
             df_hist_asc = conn.query("SELECT data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u AND tipo IN ('bonus', 'falta') ORDER BY id ASC", params={"n": jogador_selecionado, "u": USER_LOGADO}, ttl=0)
             timeline = [base_atual]
             curr = base_atual
@@ -789,11 +818,23 @@ if jogador_selecionado:
             
             st.line_chart(timeline, height=150)
 
+            st.markdown("### 📋 Extrato de Lançamentos")
             df_historico = get_historico(jogador_selecionado)
             if not df_historico.empty:
                 df_view = df_historico.copy()
                 df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
+                
+                # NOVO: Filtro Mensal
+                df_view['Mes_Ano'] = df_view['data'].apply(lambda x: x[3:10] if isinstance(x, str) and len(x) >= 10 else "N/A")
+                meses_unicos = df_view['Mes_Ano'].unique().tolist()
+                mes_selecionado = st.selectbox("📅 Filtrar extrato por mês:", ["Todos os meses"] + meses_unicos)
+                
+                if mes_selecionado != "Todos os meses":
+                    df_view = df_view[df_view['Mes_Ano'] == mes_selecionado]
+                
                 st.dataframe(df_view[['data', 'infracao', 'Lançamento']].rename(columns={'data': 'Data', 'infracao': 'Motivo'}), use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum lançamento encontrado.")
 
         with aba2:
             df_trofeus = get_trofeus(jogador_selecionado)
@@ -836,7 +877,7 @@ if TIPO_CONTA == 'pai':
     regras_dinamicas = get_regras()
     bonus_dinamicos = get_bonus_regras()
     
-    tab_jogo, tab_configs, tab_elenco, tab_tutorial = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📖 Como Usar"])
+    tab_jogo, tab_configs, tab_elenco, tab_tutorial, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📖 Como Usar", "📊 Raio-X"])
     
     with tab_jogo:
         if jogador_selecionado:
@@ -1128,3 +1169,30 @@ if TIPO_CONTA == 'pai':
             
         with st.expander("🛍️ 5. Resgatando o Prêmio"):
             st.write("Quando o saldo do Banco atingir a meta, o botão de compra ficará verde na sua aba de Lançamentos. Ao clicar, o valor é debitado do Banco e o atleta é avisado do sucesso!")
+
+    with tab_analytics:
+        st.markdown("### 📊 Raio-X do Atleta")
+        st.caption("Acompanhe os gráficos de comportamento para entender os pontos fortes e os pontos de melhoria no dia a dia.")
+        
+        if jogador_selecionado:
+            df_hist_an = get_historico_admin(jogador_selecionado)
+            if not df_hist_an.empty:
+                df_faltas = df_hist_an[df_hist_an['tipo'] == 'falta']
+                df_bonus = df_hist_an[df_hist_an['tipo'] == 'bonus']
+                
+                colA, colB = st.columns(2)
+                with colA:
+                    st.markdown("**🔴 Maiores Infrações**")
+                    if not df_faltas.empty:
+                        st.bar_chart(df_faltas['infracao'].value_counts())
+                    else:
+                        st.success("Nenhuma falta registrada!")
+                        
+                with colB:
+                    st.markdown("**⭐ Bônus Frequentes**")
+                    if not df_bonus.empty:
+                        st.bar_chart(df_bonus['infracao'].value_counts())
+                    else:
+                        st.info("Nenhum bônus registrado.")
+            else:
+                st.info("Nenhum dado registrado para este atleta ainda.")
