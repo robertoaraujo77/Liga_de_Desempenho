@@ -396,42 +396,48 @@ def calcular_badges(df_hist, faltas_atual):
 
 def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, faltas, titulos, badges=[]):
     img_src = estilo_avatar if estilo_avatar.startswith("data:image") else f"https://api.dicebear.com/7.x/{estilo_avatar}/svg?seed={nome_jogador}&backgroundColor=e2e8f0"
+    
+    # Cálculo do Score
     score_val = 99
     bonus_acumulado = max(0, saldo - (base - faltas))
     score_val -= int(faltas * 5)
     score_val += int(bonus_acumulado * 3)
     score_val = min(99, max(40, score_val)) 
 
+    # Cores dinâmicas baseadas na divisão
     bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)"
     if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
     elif "Prata" in div_nome: bg_gradient = "linear-gradient(135deg, #e3e3e3 0%, #b5b5b5 50%, #8a8a8a 100%)"
     elif "Bronze" in div_nome: bg_gradient = "linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #8b4513 100%)"
     elif "Diamante" in div_nome: bg_gradient = "linear-gradient(135deg, #b9f2ff 0%, #6dd5ed 50%, #2193b0 100%)"
     elif "Alexandrita" in div_nome: bg_gradient = "linear-gradient(135deg, #8A2BE2 0%, #4B0082 100%)"
-    elif "Esmeralda" in div_nome: bg_gradient = "linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%)"
-    elif "Rubi" in div_nome: bg_gradient = "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)"
     elif "Em Avaliação" in div_nome: bg_gradient = "linear-gradient(135deg, #4b5563 0%, #1f2937 100%)"
 
-    texto_titulos = f"<div style='font-size: 11px; color: #1a1a1a; margin-top: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px; border-radius: 5px;'>🏆 {titulos}x CAMPEÃO ELITE</div>" if titulos > 0 else ""
+    texto_titulos = f"<div style='font-size: 10px; color: #1a1a1a; margin-bottom: 5px; font-weight: 900; background: rgba(255,255,255,0.4); padding: 2px 8px; border-radius: 4px; display: inline-block;'>🏆 {titulos}x CAMPEÃO</div>" if titulos > 0 else ""
     
+    # Design das Badges em faixas horizontais pequenas
     html_badges = ""
     if badges:
-        badges_tags = "".join([f"<span style='background: rgba(255,255,255,0.8); color: #1a1a1a; padding: 3px 6px; border-radius: 10px; margin: 3px 2px; font-size: 10px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'>{b}</span>" for b in badges])
-        html_badges = f"<div style='display: flex; flex-wrap: wrap; justify-content: center; margin-top: 8px;'>{badges_tags}</div>"
+        badges_tags = "".join([f"<div style='background: rgba(255,255,255,0.8); color: #1a1a1a; padding: 2px 6px; border-radius: 3px; margin: 2px 0; font-size: 9px; font-weight: 900; text-transform: uppercase; width: fit-content; border: 1px solid rgba(0,0,0,0.1);'>{b}</div>" for b in badges])
+        html_badges = f"<div style='margin-top: 5px; display: flex; flex-direction: column; gap: 2px;'>{badges_tags}</div>"
 
+    # Layout Horizontal
     card_html = f'''
-<div style="display: flex; justify-content: center; margin-bottom: 15px;">
-<div style="background: {bg_gradient}; border-radius: 12px; width: 220px; padding: 15px; color: #1a1a1a; box-shadow: 0 8px 16px rgba(0,0,0,0.6); text-align: center; border: 2px solid #fff; position: relative; overflow: hidden;">
-<div style="position: absolute; top: 10px; left: 15px; text-align: center;">
-<div style="font-size: 32px; font-weight: 900; line-height: 1;">{score_val}</div>
-<div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">SCORE</div>
-</div>
-<img src="{img_src}" style="width: 90px; height: 90px; border-radius: 50%; margin: 15px 0 5px 0; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
-<div style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px;">{nome_jogador}</div>
-<div style="font-size: 12px; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.2); padding-top: 4px;">{div_nome}</div>
-{texto_titulos}
-{html_badges}
-</div>
+<div style="background: {bg_gradient}; border-radius: 15px; padding: 15px; color: #1a1a1a; box-shadow: 0 6px 12px rgba(0,0,0,0.4); border: 2px solid #fff; display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden; margin-bottom: 20px;">
+    <div style="text-align: center; min-width: 90px;">
+        <div style="background: #1a1a1a; color: white; border-radius: 8px; padding: 2px 5px; position: absolute; top: 10px; left: 10px; z-index: 10;">
+            <div style="font-size: 18px; font-weight: 900; line-height: 1;">{score_val}</div>
+            <div style="font-size: 7px; font-weight: bold; text-transform: uppercase;">SCORE</div>
+        </div>
+        <img src="{img_src}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+    </div>
+    
+    <div style="flex-grow: 1;">
+        <div style="font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">{nome_jogador}</div>
+        <div style="font-size: 12px; font-weight: 700; color: rgba(0,0,0,0.7); margin-bottom: 8px;">{div_nome}</div>
+        {texto_titulos}
+        {html_badges}
+    </div>
 </div>
 '''
     st.markdown(card_html, unsafe_allow_html=True)
