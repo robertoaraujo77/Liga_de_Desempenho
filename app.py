@@ -391,11 +391,13 @@ def calcular_badges(df_hist, faltas_atual):
     
     gols = infracoes_str.str.contains('gol').sum()
     ajudas = infracoes_str.str.contains('louça|limpeza|cama|lixo|casa').sum()
-    estudos = infracoes_str.str.contains('livro|escola|lição').sum()
+    estudos = infracoes_str.str.contains('livro|escola|lição|dever').sum()
+    treinos = infracoes_str.str.contains('trein|quadra|desafio').sum()
     
     if gols >= 1: badges.append("⚽ Artilheiro")
     if ajudas >= 3: badges.append("🧹 Ajudante")
     if estudos >= 2: badges.append("📚 Estudioso")
+    if treinos >= 2: badges.append("🔥 Atleta Focado")
     if faltas_atual == 0.0 and len(df_hist) >= 3: badges.append("🛡️ Intacto")
     
     return badges
@@ -796,7 +798,7 @@ if jogador_selecionado:
                 """, unsafe_allow_html=True)
                 
                 for _, notif in notificacoes_ativas.iterrows():
-                    if "GOLAÇO" in notif['mensagem'] or "Parabéns" in notif['mensagem'] or "DEPÓSITO" in notif['mensagem']:
+                    if "GOLAÇO" in notif['mensagem'] or "Parabéns" in notif['mensagem'] or "BÔNUS ESPECIAL" in notif['mensagem'] or "DEPÓSITO" in notif['mensagem']:
                         st.success(f"**{notif['data']}** - {notif['mensagem']}")
                     else:
                         st.error(f"**{notif['data']}** - {notif['mensagem']}")
@@ -955,6 +957,23 @@ if TIPO_CONTA == 'pai':
                     st.warning("Crie bônus na aba 'Regras e Bônus' primeiro.")
                     st.form_submit_button("Aguardando bônus...")
             
+            st.markdown("---")
+            st.markdown(f"**✨ Aplicar Bônus Extra (Missão Especial)**")
+            st.caption("Use isso para premiar desafios rápidos na quadra ou atitudes espontâneas. Esse dinheiro soma no campeonato!")
+            with st.form("form_bonus_extra", clear_on_submit=True):
+                m_bonus_extra = st.text_input("Motivo do Bônus Extra:", placeholder="Ex: Treino extra na quadra, ajudou o vizinho...")
+                v_bonus_extra = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="val_bonus_extra")
+                btn_bonus_extra = st.form_submit_button("Dar Bônus Extra", use_container_width=True)
+                if btn_bonus_extra:
+                    if m_bonus_extra:
+                        novas_faltas = max(0.0, faltas_atual - v_bonus_extra)
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus_extra, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                        add_historico(jogador_selecionado, f"✨ {m_bonus_extra}", v_bonus_extra, 'bonus')
+                        add_notificacao(jogador_selecionado, f"⚡ BÔNUS ESPECIAL! Você ganhou por: '{m_bonus_extra}' (+ R$ {v_bonus_extra:.2f}). A barra de faltas diminuiu!")
+                        st.rerun()
+                    else:
+                        st.error("Digite o motivo do bônus!")
+
             st.markdown("---")
             st.markdown(f"**🏦 Depósito Extra no Cofre (Presentes/Avulsos)**")
             with st.form("form_deposito", clear_on_submit=True):
