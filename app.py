@@ -916,9 +916,13 @@ if TIPO_CONTA == 'pai':
     st.markdown("---")
     st.markdown("<div class='titulo-responsivo'>📋 Área da Comissão Técnica</div>", unsafe_allow_html=True)
     
-    # Usa a memória carregada no início para não estressar o banco
-    regras_dinamicas = dict_regras_global
-    bonus_dinamicos = dict_bonus_global
+# Garante que as variáveis existam mesmo se não houver jogador selecionado
+    if 'dict_regras_global' in locals():
+        regras_dinamicas = dict_regras_global
+        bonus_dinamicos = dict_bonus_global
+    else:
+        regras_dinamicas = get_regras()
+        bonus_dinamicos = get_bonus_regras()
     
     # REMOVIDA A ABA 'Como Usar' DAQUI
     tab_jogo, tab_configs, tab_elenco, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📊 Raio-X"])
