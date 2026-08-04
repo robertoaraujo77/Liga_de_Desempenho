@@ -626,8 +626,13 @@ if TIPO_CONTA == 'pai':
         st.sidebar.markdown("⚡ **MODO GOD**")
         st.sidebar.caption("Escolha uma família para acessar e gerenciar:")
         
-        df_users = conn.query("SELECT username FROM usuarios", ttl=0)
-        todas_contas = df_users['username'].tolist() if not df_users.empty else [SUPER_ADMIN]
+        # --- CORREÇÃO: Tratamento de erro e Cache de 10 segundos ---
+        try:
+            df_users = conn.query("SELECT username FROM usuarios", ttl=10)
+            todas_contas = df_users['username'].tolist() if not df_users.empty else [SUPER_ADMIN]
+        except Exception:
+            todas_contas = [SUPER_ADMIN]
+            
         idx = todas_contas.index(USER_LOGADO) if USER_LOGADO in todas_contas else 0
         
         nova_conta = st.sidebar.selectbox("Acessar conta de:", todas_contas, index=idx, label_visibility="collapsed")
