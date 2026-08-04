@@ -808,398 +808,398 @@ if jogador_selecionado:
                     st.rerun()
                 st.markdown("---")
 
-        # --- TELA NORMAL DO JOGADOR ---
-        render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos, badges_atleta)
-        
-        # O BANCO E O SALDO SEPARADOS
-        st.markdown(f"<h3 style='text-align: center; color: #28a745; margin-top: -10px;'>💰 Cofre (Banco): R$ {poupanca:.2f}</h3>".replace('.', ','), unsafe_allow_html=True)
-        st.markdown("---")
-        
-        # FEATURE: META DA TEMPORADA NO BANCO
-        if meta_val > 0 and meta_desc:
-            progresso_meta = min((poupanca / meta_val) * 100, 100) if meta_val > 0 else 0
-            st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
-            st.markdown(f"""
+        # --- SEPARADOR DE VISÃO (ATLETA / COMISSÃO) ---
+        visao_atual = "📱 Visão do Atleta"
+        if TIPO_CONTA == 'pai':
+            st.markdown("---")
+            visao_atual = st.radio("Modo de Exibição:", ["📱 Visão do Atleta", "📋 Área da Comissão"], horizontal=True, label_visibility="collapsed")
+            st.markdown("---")
+
+        if visao_atual == "📱 Visão do Atleta":
+            render_carta_atleta(jogador_selecionado, estilo_avatar, div_atual["nome"], saldo_atual, base_atual, faltas_atual, titulos, badges_atleta)
+            
+            # O BANCO E O SALDO SEPARADOS
+            st.markdown(f"<h3 style='text-align: center; color: #28a745; margin-top: -10px;'>💰 Cofre (Banco): R$ {poupanca:.2f}</h3>".replace('.', ','), unsafe_allow_html=True)
+            st.markdown("---")
+            
+            # FEATURE: META DA TEMPORADA NO BANCO
+            if meta_val > 0 and meta_desc:
+                progresso_meta = min((poupanca / meta_val) * 100, 100) if meta_val > 0 else 0
+                st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
+                st.markdown(f"""
 <div style="background-color: #1a1a1a; border-radius: 10px; width: 100%; height: 22px; margin-bottom: 5px; border: 1px solid #333; position: relative;">
 <div style="background: linear-gradient(90deg, #1488cc, #2b32b2); width: {progresso_meta}%; height: 100%; border-radius: 10px; transition: width 0.8s;"></div>
 <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 12px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">
 {progresso_meta:.1f}% Concluído
 </div>
 </div>
-            """, unsafe_allow_html=True)
-            if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
-            else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
-            st.markdown("---")
-
-        # ==========================================
-        # ABAS DO ATLETA E COMISSÃO (Placar, Troféus e Regras)
-        # ==========================================
-        aba1, aba2, aba3 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus", "📜 Regras do Jogo"])
-        
-        with aba1:
-            col1, col2 = st.columns(2)
-            col1.metric("⚽ Saldo da Temporada", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
-            col2.metric("🔴 Multas Atuais", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
-
-            porcentagem = min((faltas_atual / limite_faltas) * 100, 100) if limite_faltas > 0 else 100
-            cor_barra = "#28a745" if porcentagem < 50 else "#fd7e14" if porcentagem < 100 else "#dc3545"
-            st.markdown(f"**Tolerância de Faltas:**")
-            st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
-
-            # Para o Gráfico da temporada, agora usamos a base carregada na memória!
-            if not df_historico_full.empty:
-                df_hist_asc = df_historico_full[df_historico_full['tipo'].isin(['bonus', 'falta'])].sort_values(by='id', ascending=True)
-            else:
-                df_hist_asc = pd.DataFrame()
-                
-            timeline = [base_atual]
-            curr = base_atual
-            for _, row in df_hist_asc.iterrows():
-                if row['tipo'] == 'bonus':
-                    curr += row['desconto']
-                elif row['tipo'] == 'falta':
-                    curr -= row['desconto']
-                timeline.append(curr)
-            if len(timeline) == 1: timeline.append(base_atual) 
-            
-            st.line_chart(timeline, height=150)
-
-            st.markdown("### 📋 Extrato de Lançamentos")
-            if not df_historico_full.empty:
-                df_view = df_historico_full.copy()
-                df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
-                
-                # NOVO: Filtro Mensal
-                df_view['Mes_Ano'] = df_view['data'].apply(lambda x: x[3:10] if isinstance(x, str) and len(x) >= 10 else "N/A")
-                meses_unicos = df_view['Mes_Ano'].unique().tolist()
-                mes_selecionado = st.selectbox("📅 Filtrar extrato por mês:", ["Todos os meses"] + meses_unicos)
-                
-                if mes_selecionado != "Todos os meses":
-                    df_view = df_view[df_view['Mes_Ano'] == mes_selecionado]
-                
-                st.dataframe(df_view[['data', 'infracao', 'Lançamento']].rename(columns={'data': 'Data', 'infracao': 'Motivo'}), use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhum lançamento encontrado.")
-
-        with aba2:
-            df_trofeus = get_trofeus(jogador_selecionado)
-            if not df_trofeus.empty:
-                df_trofeus.columns = ['Data', 'Divisão', 'Recompensa']
-                df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
-                st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
-            else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
-
-        with aba3:
-            st.markdown("### 📖 Manual do Atleta")
-            st.caption("Consulte a tabela oficial para saber como faturar mais e evitar punições.")
-            
-            st.markdown("#### ⭐ Golaços (Como ganhar)")
-            if dict_bonus_global:
-                df_b = pd.DataFrame(list(dict_bonus_global.items()), columns=["Ação", "Recompensa"])
-                df_b["Recompensa"] = df_b["Recompensa"].apply(lambda x: f"+ R$ {x:.2f}".replace('.', ','))
-                st.dataframe(df_b, use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhum bônus cadastrado no momento.")
-                
-            st.markdown("#### 🔴 Faltas (O que evitar)")
-            if dict_regras_global:
-                df_r = pd.DataFrame(list(dict_regras_global.items()), columns=["Infração", "Multa"])
-                df_r["Multa"] = df_r["Multa"].apply(lambda x: f"- R$ {x:.2f}".replace('.', ','))
-                st.dataframe(df_r, use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhuma regra de falta cadastrada.")
-
-# ==========================================
-# PAINEL DA COMISSÃO TÉCNICA (SÓ PAIS)
-# ==========================================
-if TIPO_CONTA == 'pai':
-    st.markdown("---")
-    st.markdown("<div class='titulo-responsivo'>📋 Área da Comissão Técnica</div>", unsafe_allow_html=True)
-    
-# Garante que as variáveis existam mesmo se não houver jogador selecionado
-    if 'dict_regras_global' in locals():
-        regras_dinamicas = dict_regras_global
-        bonus_dinamicos = dict_bonus_global
-    else:
-        regras_dinamicas = get_regras()
-        bonus_dinamicos = get_bonus_regras()
-    
-    # REMOVIDA A ABA 'Como Usar' DAQUI
-    tab_jogo, tab_configs, tab_elenco, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📊 Raio-X"])
-    
-    with tab_jogo:
-        if jogador_selecionado:
-            st.markdown(f"**🔴 Aplicar Falta em {jogador_selecionado}**")
-            with st.form("form_falta", clear_on_submit=True):
-                if regras_dinamicas:
-                    inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()))
-                    btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
-                    if btn_aplicar:
-                        valor_falta = regras_dinamicas[inf_sel]
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                        add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
-                        add_notificacao(jogador_selecionado, f"🚨 Infração marcada: '{inf_sel}' (- R$ {valor_falta:.2f}).")
-                        st.rerun()
-                else:
-                    st.warning("Crie regras na aba 'Regras e Bônus' primeiro.")
-                    st.form_submit_button("Aguardando regras...")
-                    
-            st.markdown("---")
-            st.markdown(f"**⭐ Aplicar Bônus (Golaço) para {jogador_selecionado}**")
-            with st.form("form_bonus", clear_on_submit=True):
-                if bonus_dinamicos:
-                    m_bonus_sel = st.selectbox("Motivo do Bônus:", list(bonus_dinamicos.keys()))
-                    btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
-                    if btn_bonus:
-                        v_bonus = bonus_dinamicos[m_bonus_sel]
-                        novas_faltas = max(0.0, faltas_atual - v_bonus)
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                        add_historico(jogador_selecionado, m_bonus_sel, v_bonus, 'bonus')
-                        add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}). A barra de faltas diminuiu!")
-                        st.rerun()
-                else:
-                    st.warning("Crie bônus na aba 'Regras e Bônus' primeiro.")
-                    st.form_submit_button("Aguardando bônus...")
-            
-            st.markdown("---")
-            st.markdown(f"**✨ Aplicar Bônus Extra (Missão Especial)**")
-            st.caption("Use isso para premiar desafios rápidos na quadra ou atitudes espontâneas. Esse dinheiro soma no campeonato!")
-            with st.form("form_bonus_extra", clear_on_submit=True):
-                m_bonus_extra = st.text_input("Motivo do Bônus Extra:", placeholder="Ex: Treino extra na quadra, ajudou o vizinho...")
-                v_bonus_extra = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="val_bonus_extra")
-                btn_bonus_extra = st.form_submit_button("Dar Bônus Extra", use_container_width=True)
-                if btn_bonus_extra:
-                    if m_bonus_extra:
-                        novas_faltas = max(0.0, faltas_atual - v_bonus_extra)
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus_extra, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                        add_historico(jogador_selecionado, f"✨ {m_bonus_extra}", v_bonus_extra, 'bonus')
-                        add_notificacao(jogador_selecionado, f"⚡ BÔNUS ESPECIAL! Você ganhou por: '{m_bonus_extra}' (+ R$ {v_bonus_extra:.2f}). A barra de faltas diminuiu!")
-                        st.rerun()
-                    else:
-                        st.error("Digite o motivo do bônus!")
-
-            st.markdown("---")
-            st.markdown(f"**🏦 Depósito Extra no Cofre (Presentes/Avulsos)**")
-            with st.form("form_deposito", clear_on_submit=True):
-                m_deposito = st.text_input("Motivo do Depósito:", placeholder="Ex: Dinheiro da Vó, Mesada extra...")
-                v_deposito = st.number_input("Valor R$:", min_value=1.00, step=1.00, key="val_deposito")
-                btn_deposito = st.form_submit_button("Depositar Direto no Banco", use_container_width=True)
-                if btn_deposito:
-                    if m_deposito:
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca + v_deposito)
-                        add_historico(jogador_selecionado, f"🏦 {m_deposito}", v_deposito, 'deposito')
-                        add_notificacao(jogador_selecionado, f"💰 DEPÓSITO EXTRA! Você recebeu um depósito direto no cofre: '{m_deposito}' (+ R$ {v_deposito:.2f}).")
-                        st.rerun()
-
-            if meta_val > 0 and meta_desc:
+                """, unsafe_allow_html=True)
+                if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
+                else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
                 st.markdown("---")
-                st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
-                if poupanca >= meta_val:
-                    if st.button(f"✅ Confirmar Compra (- R\$ {meta_val:.2f} do Banco)".replace('.', ','), type="primary", use_container_width=True):
-                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - meta_val)
-                        edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, poupanca - meta_val)
-                        add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
-                        add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado usando o dinheiro do seu Banco!")
-                        st.success("Compra efetuada! O valor foi debitado do Banco.")
-                        time.sleep(2)
-                        st.rerun()
-                else:
-                    st.info(f"O atleta tem R\$ {poupanca:.2f} no Banco. Faltam R\$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!".replace('.', ','))
-                    
-            st.markdown("---")
-            st.markdown("**🗑️ Excluir Lançamento Errado**")
-            if not df_historico_full.empty:
-                opcoes_falta = {f"{row['data']} | {row['infracao']}": (row['id'], row['desconto'], row['tipo']) for _, row in df_historico_full.iterrows()}
-                with st.form("form_excluir"):
-                    f_sel = st.selectbox("Selecione:", list(opcoes_falta.keys()), label_visibility="collapsed")
-                    btn_excluir = st.form_submit_button("Excluir Item", use_container_width=True)
-                    if btn_excluir:
-                        id_f, v_item, t_item = opcoes_falta[f_sel]
-                        delete_specific_historico(jogador_selecionado, id_f, v_item, t_item)
-                        st.rerun()
+
+            # ==========================================
+            # ABAS DO ATLETA E COMISSÃO (Placar, Troféus e Regras)
+            # ==========================================
+            aba1, aba2, aba3 = st.tabs(["🏟️ Placar", "🏆 Sala de Troféus", "📜 Regras do Jogo"])
             
-            st.markdown("---")
-            st.warning("🏁 **Encerrar Temporada** - Manda o dinheiro pro Banco e libera a surpresa.")
-            if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
-                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                st.rerun()
+            with aba1:
+                col1, col2 = st.columns(2)
+                col1.metric("⚽ Saldo da Temporada", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
+                col2.metric("🔴 Multas Atuais", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
 
-    with tab_configs:
-        sub_faltas, sub_bonus = st.tabs(["🔴 Faltas (Multas)", "⭐ Bônus (Golaços)"])
-        
-        with sub_faltas:
-            st.markdown("**➕ Criar Nova Falta**")
-            with st.form("form_criar_falta", clear_on_submit=True):
-                c1, c2 = st.columns([3, 1])
-                with c1: d_regra = st.text_input("Descrição da Falta:")
-                with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
-                btn_salvar_regra = st.form_submit_button("Salvar Falta", use_container_width=True)
-                if btn_salvar_regra:
-                    if d_regra and d_regra not in regras_dinamicas:
-                        add_regra(d_regra, v_regra)
-                        st.rerun()
+                porcentagem = min((faltas_atual / limite_faltas) * 100, 100) if limite_faltas > 0 else 100
+                cor_barra = "#28a745" if porcentagem < 50 else "#fd7e14" if porcentagem < 100 else "#dc3545"
+                st.markdown(f"**Tolerância de Faltas:**")
+                st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
 
-            st.markdown("---")
-            st.markdown("**✏️ Editar/Excluir Faltas**")
-            if regras_dinamicas:
-                r_sel = st.selectbox("Selecione a falta para editar:", list(regras_dinamicas.keys()))
-                with st.form("form_editar_falta"):
-                    c_ed1, c_ed2 = st.columns([3, 1])
-                    with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
-                    with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
-                    c_btn1, c_btn2 = st.columns(2)
-                    with c_btn1: btn_update_regra = st.form_submit_button("💾 Atualizar", use_container_width=True)
-                    with c_btn2: btn_delete_regra = st.form_submit_button("🗑️ Excluir", use_container_width=True)
-                    
-                    if btn_update_regra:
-                        update_regra(r_sel, n_texto, n_val)
-                        st.rerun()
-                    elif btn_delete_regra:
-                        delete_regra(r_sel)
-                        st.rerun()
-
-        with sub_bonus:
-            st.markdown("**➕ Criar Novo Bônus**")
-            with st.form("form_criar_bonus_aba", clear_on_submit=True):
-                cb1, cb2 = st.columns([3, 1])
-                with cb1: d_bonus = st.text_input("Descrição do Bônus:")
-                with cb2: v_bonus_input = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="num_bonus_novo")
-                btn_salvar_bonus = st.form_submit_button("Salvar Bônus", use_container_width=True)
-                if btn_salvar_bonus:
-                    if d_bonus and d_bonus not in bonus_dinamicos:
-                        add_bonus_regra(d_bonus, v_bonus_input)
-                        st.rerun()
-
-            st.markdown("---")
-            st.markdown("**✏️ Editar/Excluir Bônus**")
-            if bonus_dinamicos:
-                b_sel = st.selectbox("Selecione o bônus para editar:", list(bonus_dinamicos.keys()))
-                with st.form("form_editar_bonus_aba"):
-                    cbe1, cbe2 = st.columns([3, 1])
-                    with cbe1: nb_texto = st.text_input("Nova Descrição:", value=b_sel)
-                    with cbe2: nb_val = st.number_input("Novo Valor R$:", value=float(bonus_dinamicos[b_sel]), min_value=0.50, key="num_bonus_edit")
-                    cbb1, cbb2 = st.columns(2)
-                    with cbb1: btn_update_bonus = st.form_submit_button("💾 Atualizar", use_container_width=True)
-                    with cbb2: btn_delete_bonus = st.form_submit_button("🗑️ Excluir", use_container_width=True)
-                    
-                    if btn_update_bonus:
-                        update_bonus_regra(b_sel, nb_texto, nb_val)
-                        st.rerun()
-                    elif btn_delete_bonus:
-                        delete_bonus_regra(b_sel)
-                        st.rerun()
-
-    with tab_elenco:
-        sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar", "✏️ Contrato", "❌ Demitir", "🔗 Convite"])
-        with sub_cad:
-            with st.form("form_escalar_novo", clear_on_submit=False):
-                n_nome = st.text_input("Nome do Atleta:")
-                
-                n_avatar = st.selectbox("Avatar Padrão:", list(ESTILOS_AVATAR.keys()))
-                foto_up = st.file_uploader("📷 Ou envie uma Foto do Celular (ela vai substituir o Avatar padrão):", type=['png', 'jpg', 'jpeg'])
-                
-                c_b, c_i, c_t, c_l = st.columns(4)
-                with c_b: b_ini = st.number_input("Piso Liga (R$):", value=50.0, min_value=0.0)
-                with c_i: i_val = st.number_input("Aumento:", value=10.0)
-                with c_t: t_val = st.number_input("Teto:", value=100.0)
-                with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
-                
-                st.markdown("**🔐 Acesso do Atleta e Prêmio**")
-                c_pin, c_mdesc, c_mval = st.columns([1, 2, 1])
-                with c_pin: pin_j = st.text_input("Crie o PIN (4 dig):", max_chars=4, placeholder="Ex: 1234")
-                with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
-                with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
-                
-                st.markdown("**🏁 Modo de Estreia**")
-                t_zero = st.checkbox("🕵️‍♂️ Iniciar na Temporada Zero (Sem divisão, saldo R$ 0,00 para teste)", value=False)
-                
-                btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
-                
-                # NOVO SISTEMA DE VALIDAÇÃO COM AVISOS CLAROS
-                if btn_cadastrar:
-                    erros = []
-                    if not n_nome.strip():
-                        erros.append("O **Nome do Atleta** não pode ficar em branco.")
-                    if not pin_j or len(pin_j) != 4 or not pin_j.isdigit():
-                        erros.append("O **PIN de Acesso** precisa ter exatamente 4 números.")
-                    if t_val <= b_ini:
-                        erros.append("Atenção: O **Teto Máximo** precisa ser maior que o Piso da Liga.")
-                    if i_val <= 0:
-                        erros.append("Atenção: O **Aumento** entre as divisões deve ser maior que zero.")
-                        
-                    if not erros:
-                        avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
-                        add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, t_zero)
-                        st.success("Atleta cadastrado com sucesso!")
-                        time.sleep(1)
-                        st.rerun()
+                st.markdown("**📊 Desempenho Diário (Ganhos vs Perdas)**")
+                if not df_historico_full.empty:
+                    df_chart = df_historico_full[df_historico_full['tipo'].isin(['bonus', 'falta'])].copy()
+                    if not df_chart.empty:
+                        # Faltas ficam negativas, bônus ficam positivos
+                        df_chart['Valor'] = df_chart.apply(lambda row: row['desconto'] if row['tipo'] == 'bonus' else -row['desconto'], axis=1)
+                        # Agrupar pelo dia (pega os primeiros 10 caracteres da data DD/MM/YYYY)
+                        df_chart['Dia'] = df_chart['data'].astype(str).str[:10]
+                        df_agrupado = df_chart.groupby('Dia')['Valor'].sum()
+                        st.bar_chart(df_agrupado, height=200)
                     else:
-                        for erro in erros:
-                            st.error(erro)
+                        st.info("Nenhum bônus ou falta nesta temporada.")
+                else:
+                    st.info("Nenhuma movimentação na temporada atual.")
 
-        with sub_edit:
-            if jogadores_ativos:
-                j_edit = st.selectbox("Escolha o Atleta para ajustar o contrato:", jogadores_ativos, key="sel_edit")
-                d_edit = get_status(j_edit)
-                if d_edit:
-                    st.write("Visual atual: " + ("**[Sua Foto Personalizada]**" if d_edit[5].startswith('data:image') else "**[Desenho/Avatar Padrão]**"))
-                    with st.form("form_ajustar_contrato"):
-                        ed_nome = st.text_input("Novo Nome:", value=j_edit)
-                        
-                        ed_avatar = st.selectbox("Mudar Avatar Padrão:", ["Manter atual"] + list(ESTILOS_AVATAR.keys()))
-                        foto_ed = st.file_uploader("📷 Ou enviar NOVA Foto da Galeria (Sobrescreve a imagem atual):", type=['png', 'jpg', 'jpeg'])
-
-                        st.caption("Deixe o PIN em branco caso não queira alterar.")
-                        ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
-                        
-                        st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
-                        ce_mdesc, ce_mval = st.columns([2, 1])
-                        with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
-                        with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
-                        
-                        st.markdown("**💰 Configurações Financeiras e Cofre**")
-                        ce_b, ce_i = st.columns(2)
-                        with ce_b: ed_base = st.number_input("Piso Liga R$:", value=float(d_edit[6]))
-                        with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
-                        
-                        ce_t, ce_l = st.columns(2)
-                        with ce_t: ed_teto = st.number_input("Teto R$:", value=float(d_edit[8]))
-                        with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
-                        
-                        st.markdown("**🏦 Saldo no Banco (Ajuste Manual)**")
-                        ed_poupanca = st.number_input("Dinheiro Guardado R$:", value=float(d_edit[14]))
-                        
-                        btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
-                        if btn_salvar_contrato:
-                            if foto_ed:
-                                avatar_final = converter_para_base64(Image.open(foto_ed))
-                            elif ed_avatar != "Manter atual":
-                                avatar_final = ESTILOS_AVATAR[ed_avatar]
-                            else:
-                                avatar_final = d_edit[5]
-                            
-                            edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin), ed_poupanca)
-                            st.rerun()
-
-        with sub_del:
-            if jogadores_ativos:
-                j_del = st.selectbox("Demitir Atleta:", jogadores_ativos, key="sel_del")
-                if st.button("Confirmar Demissão", use_container_width=True):
-                    delete_jogador(j_del)
-                    st.rerun()
+                st.markdown("### 📋 Extrato de Lançamentos")
+                if not df_historico_full.empty:
+                    df_view = df_historico_full.copy()
+                    df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
                     
-        with sub_link:
-            st.markdown("**📲 Convite por WhatsApp**")
-            st.caption("Gere um convite elegante. A criança não verá códigos complexos, apenas um botão para entrar no aplicativo.")
-            if jogadores_ativos:
-                j_link = st.selectbox("Atleta Convidado:", jogadores_ativos, key="sel_link")
+                    # NOVO: Filtro Mensal
+                    df_view['Mes_Ano'] = df_view['data'].apply(lambda x: x[3:10] if isinstance(x, str) and len(x) >= 10 else "N/A")
+                    meses_unicos = df_view['Mes_Ano'].unique().tolist()
+                    mes_selecionado = st.selectbox("📅 Filtrar extrato por mês:", ["Todos os meses"] + meses_unicos)
+                    
+                    if mes_selecionado != "Todos os meses":
+                        df_view = df_view[df_view['Mes_Ano'] == mes_selecionado]
+                    
+                    st.dataframe(df_view[['data', 'infracao', 'Lançamento']].rename(columns={'data': 'Data', 'infracao': 'Motivo'}), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum lançamento encontrado.")
+
+            with aba2:
+                df_trofeus = get_trofeus(jogador_selecionado)
+                if not df_trofeus.empty:
+                    df_trofeus.columns = ['Data', 'Divisão', 'Recompensa']
+                    df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
+                    st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
+                else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
+
+            with aba3:
+                st.markdown("### 📖 Manual do Atleta")
+                st.caption("Consulte a tabela oficial para saber como faturar mais e evitar punições.")
                 
-                url_base = "https://robertoaraujo77.github.io/Liga_de_Desempenho"
-                link_pronto = f"{url_base}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
-                msg_wa = f"⚽ Olá {j_link}! A comissão técnica liberou seu acesso direto para o Vestiário da Liga de Desempenho:\n\n👉 {link_pronto}\n\nGuarde este link e use o seu PIN secreto para entrar no jogo!"
-                url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
+                st.markdown("#### ⭐ Golaços (Como ganhar)")
+                if dict_bonus_global:
+                    df_b = pd.DataFrame(list(dict_bonus_global.items()), columns=["Ação", "Recompensa"])
+                    df_b["Recompensa"] = df_b["Recompensa"].apply(lambda x: f"+ R$ {x:.2f}".replace('.', ','))
+                    st.dataframe(df_b, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum bônus cadastrado no momento.")
+                    
+                st.markdown("#### 🔴 Faltas (O que evitar)")
+                if dict_regras_global:
+                    df_r = pd.DataFrame(list(dict_regras_global.items()), columns=["Infração", "Multa"])
+                    df_r["Multa"] = df_r["Multa"].apply(lambda x: f"- R$ {x:.2f}".replace('.', ','))
+                    st.dataframe(df_r, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhuma regra de falta cadastrada.")
+
+        # ==========================================
+        # PAINEL DA COMISSÃO TÉCNICA (SÓ PAIS)
+        # ==========================================
+        if TIPO_CONTA == 'pai' and visao_atual == "📋 Área da Comissão":
+            st.markdown("---")
+            st.markdown("<div class='titulo-responsivo'>📋 Área da Comissão Técnica</div>", unsafe_allow_html=True)
+            
+            # Garante que as variáveis existam mesmo se não houver jogador selecionado
+            if 'dict_regras_global' in locals():
+                regras_dinamicas = dict_regras_global
+                bonus_dinamicos = dict_bonus_global
+            else:
+                regras_dinamicas = get_regras()
+                bonus_dinamicos = get_bonus_regras()
+            
+            tab_jogo, tab_configs, tab_elenco, tab_analytics = st.tabs(["⚖️ Lançamentos", "📝 Regras e Bônus", "⚙️ Elenco", "📊 Raio-X"])
+            
+            with tab_jogo:
+                if jogador_selecionado:
+                    
+                    with st.expander(f"🔴 Aplicar Falta em {jogador_selecionado}"):
+                        with st.form("form_falta", clear_on_submit=True):
+                            if regras_dinamicas:
+                                inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()))
+                                btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
+                                if btn_aplicar:
+                                    valor_falta = regras_dinamicas[inf_sel]
+                                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                                    add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
+                                    add_notificacao(jogador_selecionado, f"🚨 Infração marcada: '{inf_sel}' (- R$ {valor_falta:.2f}).")
+                                    st.rerun()
+                            else:
+                                st.warning("Crie regras na aba 'Regras e Bônus' primeiro.")
+                                st.form_submit_button("Aguardando regras...")
+                                
+                    with st.expander(f"⭐ Aplicar Bônus (Golaço) para {jogador_selecionado}"):
+                        with st.form("form_bonus", clear_on_submit=True):
+                            if bonus_dinamicos:
+                                m_bonus_sel = st.selectbox("Motivo do Bônus:", list(bonus_dinamicos.keys()))
+                                btn_bonus = st.form_submit_button("Dar Bônus", use_container_width=True)
+                                if btn_bonus:
+                                    v_bonus = bonus_dinamicos[m_bonus_sel]
+                                    novas_faltas = max(0.0, faltas_atual - v_bonus)
+                                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                                    add_historico(jogador_selecionado, m_bonus_sel, v_bonus, 'bonus')
+                                    add_notificacao(jogador_selecionado, f"⚽ GOLAÇO! A comissão aplicou um bônus: '{m_bonus_sel}' (+ R$ {v_bonus:.2f}). A barra de faltas diminuiu!")
+                                    st.rerun()
+                            else:
+                                st.warning("Crie bônus na aba 'Regras e Bônus' primeiro.")
+                                st.form_submit_button("Aguardando bônus...")
                 
-                st.markdown(f"""
+                    with st.expander("✨ Aplicar Bônus Extra (Missão Especial)"):
+                        st.caption("Use isso para premiar desafios rápidos na quadra ou atitudes espontâneas. Esse dinheiro soma no campeonato!")
+                        with st.form("form_bonus_extra", clear_on_submit=True):
+                            m_bonus_extra = st.text_input("Motivo do Bônus Extra:", placeholder="Ex: Treino extra na quadra, ajudou o vizinho...")
+                            v_bonus_extra = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="val_bonus_extra")
+                            btn_bonus_extra = st.form_submit_button("Dar Bônus Extra", use_container_width=True)
+                            if btn_bonus_extra:
+                                if m_bonus_extra:
+                                    novas_faltas = max(0.0, faltas_atual - v_bonus_extra)
+                                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual + v_bonus_extra, novas_faltas, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                                    add_historico(jogador_selecionado, f"✨ {m_bonus_extra}", v_bonus_extra, 'bonus')
+                                    add_notificacao(jogador_selecionado, f"⚡ BÔNUS ESPECIAL! Você ganhou por: '{m_bonus_extra}' (+ R$ {v_bonus_extra:.2f}). A barra de faltas diminuiu!")
+                                    st.rerun()
+                                else:
+                                    st.error("Digite o motivo do bônus!")
+
+                    with st.expander("🏦 Depósito Extra no Cofre (Presentes/Avulsos)"):
+                        with st.form("form_deposito", clear_on_submit=True):
+                            m_deposito = st.text_input("Motivo do Depósito:", placeholder="Ex: Dinheiro da Vó, Mesada extra...")
+                            v_deposito = st.number_input("Valor R$:", min_value=1.00, step=1.00, key="val_deposito")
+                            btn_deposito = st.form_submit_button("Depositar Direto no Banco", use_container_width=True)
+                            if btn_deposito:
+                                if m_deposito:
+                                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca + v_deposito)
+                                    add_historico(jogador_selecionado, f"🏦 {m_deposito}", v_deposito, 'deposito')
+                                    add_notificacao(jogador_selecionado, f"💰 DEPÓSITO EXTRA! Você recebeu um depósito direto no cofre: '{m_deposito}' (+ R$ {v_deposito:.2f}).")
+                                    st.rerun()
+
+                    if meta_val > 0 and meta_desc:
+                        st.markdown("---")
+                        st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
+                        if poupanca >= meta_val:
+                            if st.button(f"✅ Confirmar Compra (- R\$ {meta_val:.2f} do Banco)".replace('.', ','), type="primary", use_container_width=True):
+                                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - meta_val)
+                                edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, poupanca - meta_val)
+                                add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
+                                add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado usando o dinheiro do seu Banco!")
+                                st.success("Compra efetuada! O valor foi debitado do Banco.")
+                                time.sleep(2)
+                                st.rerun()
+                        else:
+                            st.info(f"O atleta tem R\$ {poupanca:.2f} no Banco. Faltam R\$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!".replace('.', ','))
+                        
+                    with st.expander("🗑️ Excluir Lançamento Errado"):
+                        if not df_historico_full.empty:
+                            opcoes_falta = {f"{row['data']} | {row['infracao']}": (row['id'], row['desconto'], row['tipo']) for _, row in df_historico_full.iterrows()}
+                            with st.form("form_excluir"):
+                                f_sel = st.selectbox("Selecione:", list(opcoes_falta.keys()), label_visibility="collapsed")
+                                btn_excluir = st.form_submit_button("Excluir Item", use_container_width=True)
+                                if btn_excluir:
+                                    id_f, v_item, t_item = opcoes_falta[f_sel]
+                                    delete_specific_historico(jogador_selecionado, id_f, v_item, t_item)
+                                    st.rerun()
+                
+                    st.markdown("---")
+                    st.warning("🏁 **Encerrar Temporada** - Manda o dinheiro pro Banco e libera a surpresa.")
+                    if st.button("✅ Autorizar Fim da Temporada", use_container_width=True):
+                        update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                        st.rerun()
+
+            with tab_configs:
+                sub_faltas, sub_bonus = st.tabs(["🔴 Faltas (Multas)", "⭐ Bônus (Golaços)"])
+                
+                with sub_faltas:
+                    st.markdown("**➕ Criar Nova Falta**")
+                    with st.form("form_criar_falta", clear_on_submit=True):
+                        c1, c2 = st.columns([3, 1])
+                        with c1: d_regra = st.text_input("Descrição da Falta:")
+                        with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
+                        btn_salvar_regra = st.form_submit_button("Salvar Falta", use_container_width=True)
+                        if btn_salvar_regra:
+                            if d_regra and d_regra not in regras_dinamicas:
+                                add_regra(d_regra, v_regra)
+                                st.rerun()
+
+                    st.markdown("---")
+                    st.markdown("**✏️ Editar/Excluir Faltas**")
+                    if regras_dinamicas:
+                        r_sel = st.selectbox("Selecione a falta para editar:", list(regras_dinamicas.keys()))
+                        with st.form("form_editar_falta"):
+                            c_ed1, c_ed2 = st.columns([3, 1])
+                            with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
+                            with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
+                            c_btn1, c_btn2 = st.columns(2)
+                            with c_btn1: btn_update_regra = st.form_submit_button("💾 Atualizar", use_container_width=True)
+                            with c_btn2: btn_delete_regra = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+                            
+                            if btn_update_regra:
+                                update_regra(r_sel, n_texto, n_val)
+                                st.rerun()
+                            elif btn_delete_regra:
+                                delete_regra(r_sel)
+                                st.rerun()
+
+                with sub_bonus:
+                    st.markdown("**➕ Criar Novo Bônus**")
+                    with st.form("form_criar_bonus_aba", clear_on_submit=True):
+                        cb1, cb2 = st.columns([3, 1])
+                        with cb1: d_bonus = st.text_input("Descrição do Bônus:")
+                        with cb2: v_bonus_input = st.number_input("Valor R$:", min_value=0.50, step=0.50, key="num_bonus_novo")
+                        btn_salvar_bonus = st.form_submit_button("Salvar Bônus", use_container_width=True)
+                        if btn_salvar_bonus:
+                            if d_bonus and d_bonus not in bonus_dinamicos:
+                                add_bonus_regra(d_bonus, v_bonus_input)
+                                st.rerun()
+
+                    st.markdown("---")
+                    st.markdown("**✏️ Editar/Excluir Bônus**")
+                    if bonus_dinamicos:
+                        b_sel = st.selectbox("Selecione o bônus para editar:", list(bonus_dinamicos.keys()))
+                        with st.form("form_editar_bonus_aba"):
+                            cbe1, cbe2 = st.columns([3, 1])
+                            with cbe1: nb_texto = st.text_input("Nova Descrição:", value=b_sel)
+                            with cbe2: nb_val = st.number_input("Novo Valor R$:", value=float(bonus_dinamicos[b_sel]), min_value=0.50, key="num_bonus_edit")
+                            cbb1, cbb2 = st.columns(2)
+                            with cbb1: btn_update_bonus = st.form_submit_button("💾 Atualizar", use_container_width=True)
+                            with cbb2: btn_delete_bonus = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+                            
+                            if btn_update_bonus:
+                                update_bonus_regra(b_sel, nb_texto, nb_val)
+                                st.rerun()
+                            elif btn_delete_bonus:
+                                delete_bonus_regra(b_sel)
+                                st.rerun()
+
+            with tab_elenco:
+                sub_cad, sub_edit, sub_del, sub_link = st.tabs(["➕ Escalar", "✏️ Contrato", "❌ Demitir", "🔗 Convite"])
+                with sub_cad:
+                    with st.form("form_escalar_novo", clear_on_submit=False):
+                        n_nome = st.text_input("Nome do Atleta:")
+                        
+                        n_avatar = st.selectbox("Avatar Padrão:", list(ESTILOS_AVATAR.keys()))
+                        foto_up = st.file_uploader("📷 Ou envie uma Foto do Celular (ela vai substituir o Avatar padrão):", type=['png', 'jpg', 'jpeg'])
+                        
+                        c_b, c_i, c_t, c_l = st.columns(4)
+                        with c_b: b_ini = st.number_input("Piso Liga (R$):", value=50.0, min_value=0.0)
+                        with c_i: i_val = st.number_input("Aumento:", value=10.0)
+                        with c_t: t_val = st.number_input("Teto:", value=100.0)
+                        with c_l: l_val = st.number_input("Lim. Faltas:", value=5.0)
+                        
+                        st.markdown("**🔐 Acesso do Atleta e Prêmio**")
+                        c_pin, c_mdesc, c_mval = st.columns([1, 2, 1])
+                        with c_pin: pin_j = st.text_input("Crie o PIN (4 dig):", max_chars=4, placeholder="Ex: 1234")
+                        with c_mdesc: m_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
+                        with c_mval: m_val = st.number_input("Valor do Prêmio (R$):", min_value=0.0, step=10.0)
+                        
+                        st.markdown("**🏁 Modo de Estreia**")
+                        t_zero = st.checkbox("🕵️‍♂️ Iniciar na Temporada Zero (Sem divisão, saldo R$ 0,00 para teste)", value=False)
+                        
+                        btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
+                        
+                        # NOVO SISTEMA DE VALIDAÇÃO COM AVISOS CLAROS
+                        if btn_cadastrar:
+                            erros = []
+                            if not n_nome.strip():
+                                erros.append("O **Nome do Atleta** não pode ficar em branco.")
+                            if not pin_j or len(pin_j) != 4 or not pin_j.isdigit():
+                                erros.append("O **PIN de Acesso** precisa ter exatamente 4 números.")
+                            if t_val <= b_ini:
+                                erros.append("Atenção: O **Teto Máximo** precisa ser maior que o Piso da Liga.")
+                            if i_val <= 0:
+                                erros.append("Atenção: O **Aumento** entre as divisões deve ser maior que zero.")
+                                
+                            if not erros:
+                                avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
+                                add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, t_zero)
+                                st.success("Atleta cadastrado com sucesso!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                for erro in erros:
+                                    st.error(erro)
+
+                with sub_edit:
+                    if jogadores_ativos:
+                        j_edit = st.selectbox("Escolha o Atleta para ajustar o contrato:", jogadores_ativos, key="sel_edit")
+                        d_edit = get_status(j_edit)
+                        if d_edit:
+                            st.write("Visual atual: " + ("**[Sua Foto Personalizada]**" if d_edit[5].startswith('data:image') else "**[Desenho/Avatar Padrão]**"))
+                            with st.form("form_ajustar_contrato"):
+                                ed_nome = st.text_input("Novo Nome:", value=j_edit)
+                                
+                                ed_avatar = st.selectbox("Mudar Avatar Padrão:", ["Manter atual"] + list(ESTILOS_AVATAR.keys()))
+                                foto_ed = st.file_uploader("📷 Ou enviar NOVA Foto da Galeria (Sobrescreve a imagem atual):", type=['png', 'jpg', 'jpeg'])
+
+                                st.caption("Deixe o PIN em branco caso não queira alterar.")
+                                ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
+                                
+                                st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
+                                ce_mdesc, ce_mval = st.columns([2, 1])
+                                with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
+                                with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
+                                
+                                st.markdown("**💰 Configurações Financeiras e Cofre**")
+                                ce_b, ce_i = st.columns(2)
+                                with ce_b: ed_base = st.number_input("Piso Liga R$:", value=float(d_edit[6]))
+                                with ce_i: ed_inc = st.number_input("Aumento R$:", value=float(d_edit[7]))
+                                
+                                ce_t, ce_l = st.columns(2)
+                                with ce_t: ed_teto = st.number_input("Teto R$:", value=float(d_edit[8]))
+                                with ce_l: ed_lim = st.number_input("Lim. Faltas:", value=float(d_edit[10]))
+                                
+                                st.markdown("**🏦 Saldo no Banco (Ajuste Manual)**")
+                                ed_poupanca = st.number_input("Dinheiro Guardado R$:", value=float(d_edit[14]))
+                                
+                                btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
+                                if btn_salvar_contrato:
+                                    if foto_ed:
+                                        avatar_final = converter_para_base64(Image.open(foto_ed))
+                                    elif ed_avatar != "Manter atual":
+                                        avatar_final = ESTILOS_AVATAR[ed_avatar]
+                                    else:
+                                        avatar_final = d_edit[5]
+                                    
+                                    edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin), ed_poupanca)
+                                    st.rerun()
+
+                with sub_del:
+                    if jogadores_ativos:
+                        j_del = st.selectbox("Demitir Atleta:", jogadores_ativos, key="sel_del")
+                        if st.button("Confirmar Demissão", use_container_width=True):
+                            delete_jogador(j_del)
+                            st.rerun()
+                            
+                with sub_link:
+                    st.markdown("**📲 Convite por WhatsApp**")
+                    st.caption("Gere um convite elegante. A criança não verá códigos complexos, apenas um botão para entrar no aplicativo.")
+                    if jogadores_ativos:
+                        j_link = st.selectbox("Atleta Convidado:", jogadores_ativos, key="sel_link")
+                        
+                        url_base = "https://robertoaraujo77.github.io/Liga_de_Desempenho"
+                        link_pronto = f"{url_base}/?equipe={urllib.parse.quote(USER_LOGADO)}&atleta={urllib.parse.quote(j_link)}"
+                        msg_wa = f"⚽ Olá {j_link}! A comissão técnica liberou seu acesso direto para o Vestiário da Liga de Desempenho:\n\n👉 {link_pronto}\n\nGuarde este link e use o seu PIN secreto para entrar no jogo!"
+                        url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
+                        
+                        st.markdown(f"""
 <a href="{url_wa}" target="_blank" style="text-decoration: none;">
 <div style="background-color: #25D366; color: white; padding: 12px 20px; border-radius: 8px; text-align: center; font-size: 16px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16">
@@ -1210,28 +1210,28 @@ Enviar convite pelo WhatsApp
 </a>
                 """, unsafe_allow_html=True)
 
-    with tab_analytics:
-        st.markdown("### 📊 Raio-X do Atleta")
-        st.caption("Acompanhe os gráficos de comportamento para entender os pontos fortes e os pontos de melhoria no dia a dia.")
-        
-        if jogador_selecionado:
-            if not df_historico_full.empty:
-                df_faltas = df_historico_full[df_historico_full['tipo'] == 'falta']
-                df_bonus = df_historico_full[df_historico_full['tipo'] == 'bonus']
+            with tab_analytics:
+                st.markdown("### 📊 Raio-X do Atleta")
+                st.caption("Acompanhe os gráficos de comportamento para entender os pontos fortes e os pontos de melhoria no dia a dia.")
                 
-                colA, colB = st.columns(2)
-                with colA:
-                    st.markdown("**🔴 Maiores Infrações**")
-                    if not df_faltas.empty:
-                        st.bar_chart(df_faltas['infracao'].value_counts())
-                    else:
-                        st.success("Nenhuma falta registrada!")
+                if jogador_selecionado:
+                    if not df_historico_full.empty:
+                        df_faltas = df_historico_full[df_historico_full['tipo'] == 'falta']
+                        df_bonus = df_historico_full[df_historico_full['tipo'] == 'bonus']
                         
-                with colB:
-                    st.markdown("**⭐ Bônus Frequentes**")
-                    if not df_bonus.empty:
-                        st.bar_chart(df_bonus['infracao'].value_counts())
-                    else:
-                        st.info("Nenhum bônus registrado.")
-            else:
-                st.info("Nenhum dado registrado para este atleta ainda.")
+                        colA, colB = st.columns(2)
+                        with colA:
+                            st.markdown("**🔴 Maiores Infrações**")
+                            if not df_faltas.empty:
+                                st.bar_chart(df_faltas['infracao'].value_counts())
+                            else:
+                                st.success("Nenhuma falta registrada!")
+                                
+                        with colB:
+                            st.markdown("**⭐ Bônus Frequentes**")
+                            if not df_bonus.empty:
+                                st.bar_chart(df_bonus['infracao'].value_counts())
+                            else:
+                                st.info("Nenhum bônus registrado.")
+                else:
+                    st.info("Nenhum dado registrado para este atleta ainda.")
