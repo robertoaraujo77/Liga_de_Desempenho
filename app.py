@@ -19,26 +19,22 @@ SUPER_ADMIN = "robertojr1990@gmail.com"
 # ==========================================
 st.set_page_config(page_title="Liga de Desempenho", page_icon="🏆", layout="centered")
 
-# SEM ESPAÇOS NO INÍCIO PARA NÃO BUGAR O MARKDOWN
+# SEM ESPAÇOS EM BRANCO PARA NÃO BUGAR O MARKDOWN
 st.markdown("""
 <link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
 <style>
-/* --- NOVO: Ocultar cabeçalho, menu e rodapé do Streamlit para parecer App Nativo --- */
 [data-testid="stHeader"] { display: none !important; }
 [data-testid="stToolbar"] { display: none !important; }
 #MainMenu { display: none !important; }
 footer { display: none !important; }
-
 button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; }
 .titulo-responsivo { font-size: 32px; font-weight: bold; margin-top: 10px; margin-bottom: 10px; }
 @media (max-width: 768px) {
-/* Força todos os tamanhos de títulos a diminuírem no celular proporcionalmente */
 h1 { font-size: 24px !important; }
 h2 { font-size: 22px !important; }
 h3 { font-size: 20px !important; }
 h4 { font-size: 18px !important; }
-.titulo-responsivo { font-size: 20px !important; } 
-
+.titulo-responsivo { font-size: 20px !important; }
 [data-testid="stMetricValue"] { font-size: 1.8rem !important; }
 button[data-baseweb="tab"] { font-size: 11px !important; padding: 8px 10px !important; margin-right: 0px !important; }
 }
