@@ -885,11 +885,18 @@ if jogador_selecionado:
                 st.markdown("### 📋 Extrato de Lançamentos")
                 if not df_historico_full.empty:
                     df_view = df_historico_full.copy()
+                    
+                    # 1. Converter a coluna 'data' para um formato de Data real do Pandas para ordenação perfeita
+                    df_view['Data_Real'] = pd.to_datetime(df_view['data'], format="%d/%m/%Y %H:%M", errors='coerce')
+                    
+                    # 2. Ordenar do mais recente (maior data) para o mais antigo
+                    df_view = df_view.sort_values(by='Data_Real', ascending=False)
+                    
                     df_view['Lançamento'] = df_view.apply(lambda row: f"+ R$ {row['desconto']:.2f}".replace('.', ',') if row['tipo'] in ['bonus', 'deposito'] else f"- R$ {row['desconto']:.2f}".replace('.', ','), axis=1)
                     
                     # NOVO: Filtro Mensal
                     df_view['Mes_Ano'] = df_view['data'].apply(lambda x: x[3:10] if isinstance(x, str) and len(x) >= 10 else "N/A")
-                    meses_unicos = df_view['Mes_Ano'].unique().tolist()
+                    meses_unicos = df_view['Mes_Ano'].dropna().unique().tolist()
                     mes_selecionado = st.selectbox("📅 Filtrar extrato por mês:", ["Todos os meses"] + meses_unicos)
                     
                     if mes_selecionado != "Todos os meses":
