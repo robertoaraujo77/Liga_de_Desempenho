@@ -23,10 +23,16 @@ st.set_page_config(page_title="Liga de Desempenho", page_icon="🏆", layout="ce
 st.markdown("""
 <link rel="manifest" href="https://cdn.jsdelivr.net/gh/robertoaraujo77/Liga_de_Desempenho@main/static/manifest.json" crossorigin="anonymous">
 <style>
+/* --- NOVO: Ocultar cabeçalho, menu e rodapé do Streamlit para parecer App Nativo --- */
+[data-testid="stHeader"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+#MainMenu { display: none !important; }
+footer { display: none !important; }
+
 button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; }
 .titulo-responsivo { font-size: 32px; font-weight: bold; margin-top: 10px; margin-bottom: 10px; }
 @media (max-width: 768px) {
-/* NOVO: Força todos os tamanhos de títulos a diminuírem no celular proporcionalmente */
+/* Força todos os tamanhos de títulos a diminuírem no celular proporcionalmente */
 h1 { font-size: 24px !important; }
 h2 { font-size: 22px !important; }
 h3 { font-size: 20px !important; }
@@ -778,8 +784,11 @@ if jogador_selecionado:
                         st.session_state.nome_pedra_derrota = nova_divisao["nome"]
                     elif animacao_tipo == 'manter': st.session_state.animacao_manter = True
 
+                # --- NOVA REGRA: Limite de Faltas é 20% da base ---
+                novo_limite_faltas = nova_base * 0.20
+                
                 add_trofeu(jogador_selecionado, nova_divisao["nome"], saldo_atual)
-                update_status_saldo(jogador_selecionado, nova_divisao["nome"], nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=limite_faltas, poupanca=nova_poupanca)
+                update_status_saldo(jogador_selecionado, nova_divisao["nome"], nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=novo_limite_faltas, poupanca=nova_poupanca)
                 clear_historico(jogador_selecionado)
                 st.rerun()
             st.stop()
