@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 from datetime import datetime
 import os
 import time
@@ -1013,10 +1014,19 @@ if jogador_selecionado:
                     if not df_chart.empty:
                         # Faltas ficam negativas, bônus ficam positivos
                         df_chart['Valor'] = df_chart.apply(lambda row: row['desconto'] if row['tipo'] == 'bonus' else -row['desconto'], axis=1)
-                        # Agrupar pelo dia (pega os primeiros 10 caracteres da data DD/MM/YYYY)
-                        df_chart['Dia'] = df_chart['data'].astype(str).str[:10]
-                        df_agrupado = df_chart.groupby('Dia')['Valor'].sum()
-                        st.bar_chart(df_agrupado, height=200)
+                        # Agrupa por dia usando data real (não texto), garantindo ordem cronológica correta
+                        df_chart['Dia'] = pd.to_datetime(df_chart['data'], format="%d/%m/%Y %H:%M", errors='coerce').dt.date
+                        df_chart = df_chart.dropna(subset=['Dia'])
+                        df_agrupado = df_chart.groupby('Dia', as_index=False)['Valor'].sum().sort_values('Dia')
+                        df_agrupado['Resultado'] = df_agrupado['Valor'].apply(lambda v: 'Ganho' if v >= 0 else 'Perda')
+
+                        grafico = alt.Chart(df_agrupado).mark_bar().encode(
+                            x=alt.X('Dia:T', title=None, axis=alt.Axis(format='%d/%m')),
+                            y=alt.Y('Valor:Q', title='R$'),
+                            color=alt.Color('Resultado:N', scale=alt.Scale(domain=['Ganho', 'Perda'], range=['#28a745', '#dc3545']), legend=alt.Legend(title=None)),
+                            tooltip=[alt.Tooltip('Dia:T', title='Dia', format='%d/%m/%Y'), alt.Tooltip('Valor:Q', title='R$', format='.2f')]
+                        ).properties(height=220)
+                        st.altair_chart(grafico, use_container_width=True)
                     else:
                         st.info("Nenhum bônus ou falta nesta temporada.")
                 else:
