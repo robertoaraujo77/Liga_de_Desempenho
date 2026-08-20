@@ -127,8 +127,27 @@ def init_db():
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
 
+        s.execute(text('''CREATE TABLE IF NOT EXISTS metas (id SERIAL PRIMARY KEY, usuario TEXT, jogador TEXT, descricao TEXT, valor REAL)'''))
+
         s.execute(text("ALTER TABLE regras ADD COLUMN IF NOT EXISTS cartao_vermelho BOOLEAN DEFAULT FALSE"))
         s.execute(text("ALTER TABLE historico ADD COLUMN IF NOT EXISTS cartao_vermelho BOOLEAN DEFAULT FALSE"))
+        s.execute(text("ALTER TABLE status ADD COLUMN IF NOT EXISTS data_cadastro TEXT"))
+        s.execute(text("ALTER TABLE status ADD COLUMN IF NOT EXISTS data_ultima_falta TEXT"))
+        s.execute(text("ALTER TABLE status ADD COLUMN IF NOT EXISTS fechamento_automatico BOOLEAN DEFAULT FALSE"))
+        s.execute(text("ALTER TABLE status ADD COLUMN IF NOT EXISTS dias_fechamento INTEGER DEFAULT 30"))
+        s.execute(text("ALTER TABLE status ADD COLUMN IF NOT EXISTS data_inicio_temporada TEXT"))
+
+        # Preenche datas em branco para registros antigos (evita erro no cálculo de streak/fechamento automático)
+        s.execute(text("UPDATE status SET data_cadastro = TO_CHAR(NOW(), 'DD/MM/YYYY') WHERE data_cadastro IS NULL"))
+        s.execute(text("UPDATE status SET data_inicio_temporada = TO_CHAR(NOW(), 'DD/MM/YYYY') WHERE data_inicio_temporada IS NULL"))
+
+        # Migração única: converte a antiga "meta única" (meta_descricao/meta_valor) para a nova lista de metas
+        s.execute(text('''
+            INSERT INTO metas (usuario, jogador, descricao, valor)
+            SELECT s.usuario, s.nome, s.meta_descricao, s.meta_valor FROM status s
+            WHERE s.meta_descricao IS NOT NULL AND TRIM(s.meta_descricao) != '' AND s.meta_valor IS NOT NULL AND s.meta_valor > 0
+            AND NOT EXISTS (SELECT 1 FROM metas m WHERE m.usuario = s.usuario AND m.jogador = s.nome AND m.descricao = s.meta_descricao)
+        '''))
 
         # Faxina de Clones
         s.execute(text('''
@@ -251,11 +270,12 @@ def get_jogadores():
     return df['nome'].tolist()
 
 def get_status(jogador):
-    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
+    df = conn.query('SELECT nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca, data_cadastro, data_ultima_falta, fechamento_automatico, dias_fechamento, data_inicio_temporada FROM status WHERE LOWER(nome) = LOWER(:n) AND usuario = :u', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
     if not df.empty:
         row = df.iloc[0].to_dict()
         return (row['nivel'], row['base'], row['saldo'], row['faltas'], row['aguardando_resgate'],
-                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0), float(row['poupanca'] if row['poupanca'] else 0.0))
+                row['avatar'], row['base_inicial'], row['incremento'], float(row['teto_maximo']), int(row['titulos']), float(row['limite_faltas']), row['pin_jogador'], row['meta_descricao'], float(row['meta_valor'] if row['meta_valor'] else 0), float(row['poupanca'] if row['poupanca'] else 0.0),
+                row['data_cadastro'], row['data_ultima_falta'], bool(row['fechamento_automatico']), int(row['dias_fechamento']) if row['dias_fechamento'] else 30, row['data_inicio_temporada'])
     return None
 
 def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar, titulos, teto_maximo, limite_faltas, poupanca):
@@ -264,7 +284,7 @@ def update_status_saldo(jogador, nivel, base, saldo, faltas, aguardando, avatar,
                   {"n": str(nivel), "b": float(base), "s": float(saldo), "f": float(faltas), "ag": int(aguardando), "av": str(avatar), "nome": str(jogador), "t": int(titulos), "tm": float(teto_maximo), "lf": float(limite_faltas), "p": float(poupanca), "u": USER_LOGADO})
         s.commit()
 
-def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, is_temporada_zero):
+def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, is_temporada_zero, fechamento_automatico=False, dias_fechamento=30):
     inc = max(incremento, 1.0)
     saltos_totais = int(round((teto_maximo - base_inicial) / inc))
     qtd_divisoes = saltos_totais + 1
@@ -273,16 +293,17 @@ def add_jogador(nome, estilo_avatar, base_inicial, incremento, teto_maximo, limi
 
     niv_inicial = "Em Avaliação 🕵️‍♂️" if is_temporada_zero else divisao_piso
     b_inicial = 0.0 if is_temporada_zero else float(base_inicial)
+    hoje = datetime.now().strftime("%d/%m/%Y")
 
     with conn.session as s:
-        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, meta_descricao, meta_valor, poupanca) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, :mdesc, :mval, 0.0)'), 
-                  {"u": USER_LOGADO, "n": nome, "niv": niv_inicial, "b": b_inicial, "s": b_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "mdesc": meta_desc, "mval": meta_val})
+        s.execute(text('INSERT INTO status (usuario, nome, nivel, base, saldo, faltas, aguardando_resgate, avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jogador, poupanca, data_cadastro, data_inicio_temporada, fechamento_automatico, dias_fechamento) VALUES (:u, :n, :niv, :b, :s, :f, :ag, :av, :bi, :inc, :tm, 0, :lf, :pin, 0.0, :dc, :dit, :fa, :df)'), 
+                  {"u": USER_LOGADO, "n": nome, "niv": niv_inicial, "b": b_inicial, "s": b_inicial, "f": 0.0, "ag": 0, "av": estilo_avatar, "bi": base_inicial, "inc": incremento, "tm": teto_maximo, "lf": limite_faltas, "pin": hash_password(pin_jogador), "dc": hoje, "dit": hoje, "fa": bool(fechamento_automatico), "df": int(dias_fechamento)})
         s.commit()
 
-def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, meta_desc, meta_val, change_pin, nova_poupanca):
+def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jogador, change_pin, nova_poupanca, fechamento_automatico, dias_fechamento):
     with conn.session as s:
-        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, meta_descricao=:mdesc, meta_valor=:mval, poupanca=:np'
-        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "mdesc": meta_desc, "mval": float(meta_val), "np": float(nova_poupanca), "na": nome_antigo, "u": USER_LOGADO}
+        query = 'UPDATE status SET nome=:nn, avatar=:av, base_inicial=:bi, incremento=:inc, teto_maximo=:tm, limite_faltas=:lf, poupanca=:np, fechamento_automatico=:fa, dias_fechamento=:df'
+        params = {"nn": novo_nome, "av": estilo_avatar, "bi": float(base_inicial), "inc": float(incremento), "tm": float(teto_maximo), "lf": float(limite_faltas), "np": float(nova_poupanca), "fa": bool(fechamento_automatico), "df": int(dias_fechamento), "na": nome_antigo, "u": USER_LOGADO}
         if change_pin:
             query += ', pin_jogador=:pin'
             params['pin'] = hash_password(pin_jogador)
@@ -293,6 +314,7 @@ def edit_jogador(nome_antigo, novo_nome, estilo_avatar, base_inicial, incremento
             s.execute(text('UPDATE historico SET nome=:nn WHERE LOWER(nome)=LOWER(:na) AND usuario=:u'), {"nn": novo_nome, "na": nome_antigo, "u": USER_LOGADO})
             s.execute(text('UPDATE trofeus SET nome=:nn WHERE LOWER(nome)=LOWER(:na) AND usuario=:u'), {"nn": novo_nome, "na": nome_antigo, "u": USER_LOGADO})
             s.execute(text('UPDATE notificacoes SET nome=:nn WHERE LOWER(nome)=LOWER(:na) AND usuario=:u'), {"nn": novo_nome, "na": nome_antigo, "u": USER_LOGADO})
+            s.execute(text('UPDATE metas SET jogador=:nn WHERE LOWER(jogador)=LOWER(:na) AND usuario=:u'), {"nn": novo_nome, "na": nome_antigo, "u": USER_LOGADO})
         s.commit()
 
 def delete_jogador(nome):
@@ -301,7 +323,47 @@ def delete_jogador(nome):
         s.execute(text('DELETE FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"n": nome, "u": USER_LOGADO})
         s.execute(text('DELETE FROM trofeus WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"n": nome, "u": USER_LOGADO})
         s.execute(text('DELETE FROM notificacoes WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"n": nome, "u": USER_LOGADO})
+        s.execute(text('DELETE FROM metas WHERE LOWER(jogador) = LOWER(:n) AND usuario = :u'), {"n": nome, "u": USER_LOGADO})
         s.commit()
+
+# --- FUNÇÕES DE METAS (LISTA DE DESEJOS) ---
+def get_metas(jogador):
+    return conn.query('SELECT id, descricao, valor FROM metas WHERE LOWER(jogador) = LOWER(:j) AND usuario = :u ORDER BY id ASC', params={"j": jogador, "u": USER_LOGADO}, ttl=0)
+
+def add_meta(jogador, descricao, valor):
+    with conn.session as s:
+        s.execute(text('INSERT INTO metas (usuario, jogador, descricao, valor) VALUES (:u, :j, :d, :v)'), {"u": USER_LOGADO, "j": jogador, "d": descricao, "v": float(valor)})
+        s.commit()
+
+def delete_meta(meta_id):
+    with conn.session as s:
+        s.execute(text('DELETE FROM metas WHERE id = :id AND usuario = :u'), {"id": int(meta_id), "u": USER_LOGADO})
+        s.commit()
+
+# --- FUNÇÕES DE STREAK (SEQUÊNCIA SEM FALTAS) ---
+def registrar_data_ultima_falta(jogador):
+    hoje = datetime.now().strftime("%d/%m/%Y")
+    with conn.session as s:
+        s.execute(text('UPDATE status SET data_ultima_falta = :d WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"d": hoje, "n": jogador, "u": USER_LOGADO})
+        s.commit()
+
+def calcular_dias_sem_falta(data_ultima_falta, data_cadastro):
+    referencia = data_ultima_falta if data_ultima_falta else data_cadastro
+    if not referencia:
+        return 0
+    try:
+        data_ref = datetime.strptime(referencia, "%d/%m/%Y")
+        return max(0, (datetime.now().date() - data_ref.date()).days)
+    except Exception:
+        return 0
+
+# --- FECHAMENTO AUTOMÁTICO DE TEMPORADA ---
+def set_data_inicio_temporada(jogador, data):
+    with conn.session as s:
+        s.execute(text('UPDATE status SET data_inicio_temporada = :d WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"d": data, "n": jogador, "u": USER_LOGADO})
+        s.commit()
+
+
 
 def add_historico(jogador, infracao, valor, tipo='falta', cartao_vermelho=False):
     agora = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -323,7 +385,7 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
         s.commit()
     dados_jogador = get_status(jogador)
     if dados_jogador:
-        nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, poupanca = dados_jogador
+        nivel, base, saldo, faltas, aguardando, avatar, base_ini, inc, teto, titulos, limite, pin, mdesc, mval, poupanca, *_resto = dados_jogador
         
         novo_saldo = saldo
         novas_faltas = faltas
@@ -359,6 +421,10 @@ def add_trofeu(jogador, nivel, saldo):
 
 def get_trofeus(jogador):
     return conn.query('SELECT data as Data, nivel as Divisão, saldo as Recompensa FROM trofeus WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=0)
+
+def extrair_numero_divisao(nivel_str):
+    match = re.match(r'(\d+)ª', str(nivel_str))
+    return int(match.group(1)) if match else None
 
 # ==========================================
 # MOTOR MATEMÁTICO E CARD DO ATLETA
@@ -682,6 +748,7 @@ if TIPO_CONTA == 'pai':
                         s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
                         s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
                         s.execute(text("DELETE FROM notificacoes WHERE usuario = :u"), {"u": st.session_state.impersonate})
+                        s.execute(text("DELETE FROM metas WHERE usuario = :u"), {"u": st.session_state.impersonate})
                         s.commit()
                     st.session_state.impersonate = SUPER_ADMIN
                     st.rerun()
@@ -723,7 +790,7 @@ else:
 if jogador_selecionado:
     dados_jogador = get_status(jogador_selecionado)
     if dados_jogador:
-        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, poupanca = dados_jogador
+        nivel_atual, base_atual, saldo_atual, faltas_atual, aguardando_resgate, estilo_avatar, base_inicial, incremento, teto_maximo, titulos, limite_faltas, pin_jog, meta_desc, meta_val, poupanca, data_cadastro, data_ultima_falta, fechamento_automatico, dias_fechamento, data_inicio_temporada = dados_jogador
         divisoes, div_atual, index_atual = get_info_campeonato(base_inicial, incremento, teto_maximo, base_atual, nivel_atual)
         
         # CARREGAMENTO CENTRALIZADO (Evita Timeout no Supabase reduzindo queries)
@@ -733,6 +800,18 @@ if jogador_selecionado:
         
         # GERAR BADGES (Agora usa o histórico que já carregamos da memória)
         badges_atleta = calcular_badges(df_historico_full, faltas_atual)
+
+        # --- FECHAMENTO AUTOMÁTICO DE TEMPORADA (se ativado no contrato do atleta) ---
+        if fechamento_automatico and aguardando_resgate == 0 and data_inicio_temporada:
+            try:
+                dt_inicio = datetime.strptime(data_inicio_temporada, "%d/%m/%Y")
+                dias_passados = (datetime.now() - dt_inicio).days
+                if dias_passados >= dias_fechamento:
+                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 1, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                    aguardando_resgate = 1
+                    st.info(f"🔁 **Fechamento Automático:** a temporada de {jogador_selecionado} foi encerrada automaticamente após {dias_fechamento} dias.")
+            except Exception:
+                pass
 
         # --- LÓGICA DO BOTÃO SURPRESA (SÓ PARA O ATLETA) ---
         if aguardando_resgate == 1 and TIPO_CONTA == 'filho':
@@ -795,6 +874,7 @@ if jogador_selecionado:
                 add_trofeu(jogador_selecionado, nova_divisao["nome"], saldo_atual)
                 update_status_saldo(jogador_selecionado, nova_divisao["nome"], nova_base, nova_base, 0.0, aguardando=0, avatar=estilo_avatar, titulos=titulos, teto_maximo=teto_maximo, limite_faltas=novo_limite_faltas, poupanca=nova_poupanca)
                 clear_historico(jogador_selecionado)
+                set_data_inicio_temporada(jogador_selecionado, datetime.now().strftime("%d/%m/%Y"))
                 st.rerun()
             st.stop()
             
@@ -803,6 +883,9 @@ if jogador_selecionado:
             st.warning("⏳ **Temporada Encerrada!** O botão surpresa está esperando o atleta lá no vestiário.")
             if st.button("❌ Cancelar Fim de Temporada (Reabrir Mês)", use_container_width=True):
                 update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
+                if fechamento_automatico:
+                    # Evita que o fechamento automático dispare de novo imediatamente no próximo carregamento
+                    set_data_inicio_temporada(jogador_selecionado, datetime.now().strftime("%d/%m/%Y"))
                 st.rerun()
             st.stop()
 
@@ -840,21 +923,34 @@ if jogador_selecionado:
             # O BANCO E O SALDO SEPARADOS
             st.markdown(f"<h3 style='text-align: center; color: #28a745; margin-top: -10px;'>💰 Cofre (Banco): R$ {poupanca:.2f}</h3>".replace('.', ','), unsafe_allow_html=True)
             st.markdown("---")
-            
-            # FEATURE: META DA TEMPORADA NO BANCO
-            if meta_val > 0 and meta_desc:
-                progresso_meta = min((poupanca / meta_val) * 100, 100) if meta_val > 0 else 0
-                st.markdown(f"**🎯 Grande Objetivo: {meta_desc}**")
-                st.markdown(f"""
+
+            # FEATURE: STREAK - DIAS SEM FALTA
+            dias_sem_falta = calcular_dias_sem_falta(data_ultima_falta, data_cadastro)
+            if dias_sem_falta > 0:
+                cor_streak = "#28a745" if dias_sem_falta >= 7 else "#fd7e14"
+                st.markdown(f"""<div style="background: rgba(253, 126, 20, 0.12); border: 1px solid {cor_streak}; border-radius: 10px; padding: 8px 15px; text-align: center; margin-bottom: 15px;">
+<span style="font-size: 16px; font-weight: 900; color: {cor_streak};">🔥 {dias_sem_falta} dia{'s' if dias_sem_falta != 1 else ''} sem faltas!</span>
+</div>""", unsafe_allow_html=True)
+
+            # FEATURE: LISTA DE METAS (WISHLIST)
+            df_metas_atleta = get_metas(jogador_selecionado)
+            if not df_metas_atleta.empty:
+                st.markdown("**🎯 Lista de Desejos**")
+                for _, m in df_metas_atleta.iterrows():
+                    progresso_meta = min((poupanca / m['valor']) * 100, 100) if m['valor'] > 0 else 0
+                    st.markdown(f"*{m['descricao']}*")
+                    st.markdown(f"""
 <div style="background-color: #1a1a1a; border-radius: 10px; width: 100%; height: 22px; margin-bottom: 5px; border: 1px solid #333; position: relative;">
 <div style="background: linear-gradient(90deg, #1488cc, #2b32b2); width: {progresso_meta}%; height: 100%; border-radius: 10px; transition: width 0.8s;"></div>
 <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 12px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">
 {progresso_meta:.1f}% Concluído
 </div>
 </div>
-                """, unsafe_allow_html=True)
-                if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{meta_desc}**!")
-                else: st.caption(f"Faltam R\$ {(meta_val - poupanca):.2f} no Banco para alcançar a meta.".replace('.', ','))
+                    """, unsafe_allow_html=True)
+                    if progresso_meta >= 100: st.success(f"🎉 O dinheiro no banco atingiu a meta para: **{m['descricao']}**!")
+                    else:
+                        txt_faltam = f"R$ {(m['valor'] - poupanca):.2f}".replace('.', ',')
+                        st.caption(f"Faltam {txt_faltam} no Banco para alcançar essa meta.")
                 st.markdown("---")
 
             # ==========================================
@@ -889,6 +985,27 @@ if jogador_selecionado:
 <div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px; transition: width 0.5s;"></div>
 <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 11px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">{texto_barra}</div>
 </div>""", unsafe_allow_html=True)
+
+                # FEATURE: RESUMO SEMANAL AUTOMÁTICO
+                st.markdown("**📅 Resumo da Semana (últimos 7 dias)**")
+                if not df_historico_full.empty:
+                    df_semana = df_historico_full.copy()
+                    df_semana['Data_Real'] = pd.to_datetime(df_semana['data'], format="%d/%m/%Y %H:%M", errors='coerce')
+                    limite_semana = datetime.now() - pd.Timedelta(days=7)
+                    df_semana = df_semana[df_semana['Data_Real'] >= limite_semana]
+                    qtd_faltas_semana = len(df_semana[df_semana['tipo'] == 'falta'])
+                    qtd_bonus_semana = len(df_semana[df_semana['tipo'] == 'bonus'])
+                    valor_faltas_semana = df_semana[df_semana['tipo'] == 'falta']['desconto'].sum()
+                    valor_bonus_semana = df_semana[df_semana['tipo'] == 'bonus']['desconto'].sum()
+                    saldo_liquido_semana = valor_bonus_semana - valor_faltas_semana
+                    txt_saldo_semana = f"R$ {saldo_liquido_semana:.2f}".replace('.', ',')
+                    cs1, cs2, cs3 = st.columns(3)
+                    cs1.metric("🔴 Faltas", qtd_faltas_semana)
+                    cs2.metric("⭐ Bônus", qtd_bonus_semana)
+                    cs3.metric("💵 Saldo Líquido", txt_saldo_semana)
+                else:
+                    st.caption("Nenhuma movimentação ainda nesta temporada.")
+                st.markdown("---")
 
                 st.markdown("**📊 Desempenho Diário (Ganhos vs Perdas)**")
                 if not df_historico_full.empty:
@@ -933,6 +1050,22 @@ if jogador_selecionado:
                 df_trofeus = get_trofeus(jogador_selecionado)
                 if not df_trofeus.empty:
                     df_trofeus.columns = ['Data', 'Divisão', 'Recompensa']
+
+                    # FEATURE: GRÁFICO DE EVOLUÇÃO ENTRE TEMPORADAS
+                    df_evolucao = df_trofeus.iloc[::-1].reset_index(drop=True)  # ordem cronológica (mais antigo primeiro)
+                    df_evolucao['Nº Divisão'] = df_evolucao['Divisão'].apply(extrair_numero_divisao)
+                    df_evolucao_valida = df_evolucao.dropna(subset=['Nº Divisão'])
+                    if len(df_evolucao_valida) >= 2:
+                        st.markdown("**📈 Evolução de Divisão**")
+                        st.caption("Quanto menor o número, melhor a divisão (1ª Divisão é a mais alta).")
+                        serie_divisao = df_evolucao_valida.set_index('Data')['Nº Divisão']
+                        st.line_chart(serie_divisao, height=180)
+
+                        st.markdown("**💰 Dinheiro Ganho por Temporada**")
+                        serie_dinheiro = df_evolucao_valida.set_index('Data')['Recompensa'].astype(float)
+                        st.bar_chart(serie_dinheiro, height=180)
+                        st.markdown("---")
+
                     df_trofeus['Recompensa'] = df_trofeus['Recompensa'].apply(lambda x: f"R$ {float(x):.2f}".replace('.', ','))
                     st.dataframe(df_trofeus, use_container_width=True, hide_index=True)
                 else: st.info(f"{jogador_selecionado} ainda não encerrou temporadas.")
@@ -990,6 +1123,7 @@ if jogador_selecionado:
                                     eh_cartao_vermelho = regras_dinamicas[inf_sel]["cartao_vermelho"]
                                     update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
                                     add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta', cartao_vermelho=eh_cartao_vermelho)
+                                    registrar_data_ultima_falta(jogador_selecionado)
                                     add_notificacao(jogador_selecionado, f"🚨 Infração marcada: '{inf_sel}' (- R$ {valor_falta:.2f}).")
                                     st.rerun()
                             else:
@@ -1040,20 +1174,25 @@ if jogador_selecionado:
                                     add_notificacao(jogador_selecionado, f"💰 DEPÓSITO EXTRA! Você recebeu um depósito direto no cofre: '{m_deposito}' (+ R$ {v_deposito:.2f}).")
                                     st.rerun()
 
-                    if meta_val > 0 and meta_desc:
+                    df_metas_comissao = get_metas(jogador_selecionado)
+                    if not df_metas_comissao.empty:
                         st.markdown("---")
-                        st.markdown(f"**🛍️ Efetuar Compra do Prêmio: {meta_desc}**")
-                        if poupanca >= meta_val:
-                            if st.button(f"✅ Confirmar Compra (- R\$ {meta_val:.2f} do Banco)".replace('.', ','), type="primary", use_container_width=True):
-                                update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - meta_val)
-                                edit_jogador(jogador_selecionado, jogador_selecionado, estilo_avatar, base_inicial, incremento, teto_maximo, limite_faltas, pin_jog, "", 0.0, False, poupanca - meta_val)
-                                add_historico(jogador_selecionado, f"🛍️ Comprou: {meta_desc}", meta_val, 'compra')
-                                add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{meta_desc}' foi resgatado usando o dinheiro do seu Banco!")
-                                st.success("Compra efetuada! O valor foi debitado do Banco.")
-                                time.sleep(2)
-                                st.rerun()
-                        else:
-                            st.info(f"O atleta tem R\$ {poupanca:.2f} no Banco. Faltam R\$ {(meta_val - poupanca):.2f} para o resgate. Encerre a temporada para o Saldo Atual virar dinheiro no Banco!".replace('.', ','))
+                        st.markdown("**🛍️ Efetuar Compra de Prêmio (Lista de Desejos)**")
+                        for _, meta_row in df_metas_comissao.iterrows():
+                            m_id, m_desc_row, m_val_row = int(meta_row['id']), meta_row['descricao'], float(meta_row['valor'])
+                            txt_valor = f"R$ {m_val_row:.2f}".replace('.', ',')
+                            if poupanca >= m_val_row:
+                                if st.button(f"✅ Comprar: {m_desc_row} (- {txt_valor} do Banco)", key=f"compra_meta_{m_id}", type="primary", use_container_width=True):
+                                    update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual, faltas_atual, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca - m_val_row)
+                                    add_historico(jogador_selecionado, f"🛍️ Comprou: {m_desc_row}", m_val_row, 'compra')
+                                    add_notificacao(jogador_selecionado, f"🏆 Parabéns! O prêmio '{m_desc_row}' foi resgatado usando o dinheiro do seu Banco!")
+                                    delete_meta(m_id)
+                                    st.success("Compra efetuada! O valor foi debitado do Banco.")
+                                    time.sleep(2)
+                                    st.rerun()
+                            else:
+                                txt_faltam = f"R$ {(m_val_row - poupanca):.2f}".replace('.', ',')
+                                st.caption(f"🔒 {m_desc_row} ({txt_valor}): faltam {txt_faltam} no Banco.")
                         
                     with st.expander("🗑️ Excluir Lançamento Errado"):
                         if not df_historico_full.empty:
@@ -1162,6 +1301,11 @@ if jogador_selecionado:
                         
                         st.markdown("**🏁 Modo de Estreia**")
                         t_zero = st.checkbox("🕵️‍♂️ Iniciar na Temporada Zero (Sem divisão, saldo R$ 0,00 para teste)", value=False)
+
+                        st.markdown("**🔁 Fechamento Automático de Temporada (opcional)**")
+                        c_fa, c_df = st.columns([2, 1])
+                        with c_fa: fa_nova = st.checkbox("Fechar a temporada sozinho, sem precisar clicar no botão", value=False, key="fa_nova")
+                        with c_df: df_nova = st.number_input("A cada quantos dias:", value=30, min_value=1, step=1, key="df_nova")
                         
                         btn_cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
                         
@@ -1179,7 +1323,9 @@ if jogador_selecionado:
                                 
                             if not erros:
                                 avatar_final = converter_para_base64(Image.open(foto_up)) if foto_up else ESTILOS_AVATAR[n_avatar]
-                                add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, m_desc, m_val, t_zero)
+                                add_jogador(n_nome, avatar_final, b_ini, i_val, t_val, l_val, pin_j, t_zero, fa_nova, df_nova)
+                                if m_desc and m_val > 0:
+                                    add_meta(n_nome, m_desc, m_val)
                                 st.success("Atleta cadastrado com sucesso!")
                                 time.sleep(1)
                                 st.rerun()
@@ -1202,11 +1348,6 @@ if jogador_selecionado:
                                 st.caption("Deixe o PIN em branco caso não queira alterar.")
                                 ed_pin = st.text_input("Novo PIN (opcional):", max_chars=4, placeholder="Ex: 4321")
                                 
-                                st.markdown("**🎯 Objetivo de Resgate (Prêmio)**")
-                                ce_mdesc, ce_mval = st.columns([2, 1])
-                                with ce_mdesc: ed_mdesc = st.text_input("Nome do Prêmio:", value=d_edit[12] if d_edit[12] else "")
-                                with ce_mval: ed_mval = st.number_input("Valor do Prêmio (R$):", value=float(d_edit[13]), min_value=0.0)
-                                
                                 st.markdown("**💰 Configurações Financeiras e Cofre**")
                                 ce_b, ce_i = st.columns(2)
                                 with ce_b: ed_base = st.number_input("Piso Liga R$:", value=float(d_edit[6]))
@@ -1218,6 +1359,11 @@ if jogador_selecionado:
                                 
                                 st.markdown("**🏦 Saldo no Banco (Ajuste Manual)**")
                                 ed_poupanca = st.number_input("Dinheiro Guardado R$:", value=float(d_edit[14]))
+
+                                st.markdown("**🔁 Fechamento Automático de Temporada (opcional)**")
+                                ce_fa, ce_df = st.columns([2, 1])
+                                with ce_fa: ed_fa = st.checkbox("Fechar a temporada sozinho, sem precisar clicar no botão", value=bool(d_edit[17]))
+                                with ce_df: ed_df = st.number_input("A cada quantos dias:", value=int(d_edit[18]), min_value=1, step=1)
                                 
                                 btn_salvar_contrato = st.form_submit_button("💾 Salvar Contrato", use_container_width=True)
                                 if btn_salvar_contrato:
@@ -1228,8 +1374,31 @@ if jogador_selecionado:
                                     else:
                                         avatar_final = d_edit[5]
                                     
-                                    edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, ed_mdesc, ed_mval, bool(ed_pin), ed_poupanca)
+                                    edit_jogador(j_edit, ed_nome, avatar_final, ed_base, ed_inc, ed_teto, ed_lim, ed_pin, bool(ed_pin), ed_poupanca, ed_fa, ed_df)
                                     st.rerun()
+
+                            st.markdown("---")
+                            st.markdown(f"**🎯 Lista de Desejos de {j_edit}**")
+                            df_metas_edit = get_metas(j_edit)
+                            if not df_metas_edit.empty:
+                                for _, meta_edit in df_metas_edit.iterrows():
+                                    cm1, cm2 = st.columns([4, 1])
+                                    txt_val_meta = f"R$ {float(meta_edit['valor']):.2f}".replace('.', ',')
+                                    with cm1: st.write(f"• {meta_edit['descricao']} — {txt_val_meta}")
+                                    with cm2:
+                                        if st.button("🗑️", key=f"del_meta_{int(meta_edit['id'])}"):
+                                            delete_meta(int(meta_edit['id']))
+                                            st.rerun()
+                            else:
+                                st.caption("Nenhuma meta cadastrada ainda.")
+                            with st.form("form_add_meta", clear_on_submit=True):
+                                cnm1, cnm2 = st.columns([3, 1])
+                                with cnm1: nova_meta_desc = st.text_input("Nome do Prêmio:", placeholder="Ex: Chuteira Nova")
+                                with cnm2: nova_meta_val = st.number_input("Valor R$:", min_value=0.0, step=10.0)
+                                if st.form_submit_button("➕ Adicionar à Lista de Desejos", use_container_width=True):
+                                    if nova_meta_desc and nova_meta_val > 0:
+                                        add_meta(j_edit, nova_meta_desc, nova_meta_val)
+                                        st.rerun()
 
                 with sub_del:
                     if jogadores_ativos:
