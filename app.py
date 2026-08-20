@@ -49,22 +49,22 @@ ESTILOS_AVATAR = {"🧑 Desenho Moderno": "notionists", "🤠 Aventureiro": "adv
 # ==========================================
 def obter_regras_padrao(usuario):
     return [
-        {"u": usuario, "d": "🥱 Acordar reclamando", "v": 1.0},
-        {"u": usuario, "d": "👟 Deixa roupa no chão e chuteira", "v": 2.0},
-        {"u": usuario, "d": "🚽 Deixar a toalha no chão/privada", "v": 1.0},
-        {"u": usuario, "d": "💡 Deixar luz acesa", "v": 1.0},
-        {"u": usuario, "d": "🤬 Desobedecer aos pais (Cartão Vermelho)", "v": 20.0},
-        {"u": usuario, "d": "🤔 Desobediência no Treino ou Jogo", "v": 3.0},
-        {"u": usuario, "d": "📚 Não fazer lição", "v": 5.0},
-        {"u": usuario, "d": "🧼 Não ir tomar banho quando solicitado", "v": 2.0},
-        {"u": usuario, "d": "🗑️ Não levar o lixo", "v": 3.0},
-        {"u": usuario, "d": "🚿 Não seca o banheiro", "v": 1.0},
-        {"u": usuario, "d": "🚰 Não tomou água", "v": 2.0},
-        {"u": usuario, "d": "😒 Reclamar de ir aos treinos", "v": 2.0},
-        {"u": usuario, "d": "🫩 Responder os pais", "v": 3.0},
-        {"u": usuario, "d": "🥊 Brigar com o irmão", "v": 5.0},
-        {"u": usuario, "d": "🎮 Passar do limite de telas", "v": 3.0},
-        {"u": usuario, "d": "🤥 Mentir para os pais", "v": 15.0}
+        {"u": usuario, "d": "🥱 Acordar reclamando", "v": 1.0, "cv": False},
+        {"u": usuario, "d": "👟 Deixa roupa no chão e chuteira", "v": 2.0, "cv": False},
+        {"u": usuario, "d": "🚽 Deixar a toalha no chão/privada", "v": 1.0, "cv": False},
+        {"u": usuario, "d": "💡 Deixar luz acesa", "v": 1.0, "cv": False},
+        {"u": usuario, "d": "🤬 Desobedecer aos pais (Cartão Vermelho)", "v": 20.0, "cv": True},
+        {"u": usuario, "d": "🤔 Desobediência no Treino ou Jogo", "v": 3.0, "cv": False},
+        {"u": usuario, "d": "📚 Não fazer lição", "v": 5.0, "cv": False},
+        {"u": usuario, "d": "🧼 Não ir tomar banho quando solicitado", "v": 2.0, "cv": False},
+        {"u": usuario, "d": "🗑️ Não levar o lixo", "v": 3.0, "cv": False},
+        {"u": usuario, "d": "🚿 Não seca o banheiro", "v": 1.0, "cv": False},
+        {"u": usuario, "d": "🚰 Não tomou água", "v": 2.0, "cv": False},
+        {"u": usuario, "d": "😒 Reclamar de ir aos treinos", "v": 2.0, "cv": False},
+        {"u": usuario, "d": "🫩 Responder os pais", "v": 3.0, "cv": False},
+        {"u": usuario, "d": "🥊 Brigar com o irmão", "v": 5.0, "cv": False},
+        {"u": usuario, "d": "🎮 Passar do limite de telas", "v": 3.0, "cv": False},
+        {"u": usuario, "d": "🤥 Mentir para os pais", "v": 15.0, "cv": False}
     ]
 
 def obter_bonus_padrao(usuario):
@@ -125,7 +125,15 @@ def init_db():
         if 'meta_descricao' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_descricao TEXT"))
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
-        
+
+        res_cols_regras = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='regras'")).fetchall()
+        cols_regras = [r[0] for r in res_cols_regras]
+        if 'cartao_vermelho' not in cols_regras: s.execute(text("ALTER TABLE regras ADD COLUMN cartao_vermelho BOOLEAN DEFAULT FALSE"))
+
+        res_cols_hist = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='historico'")).fetchall()
+        cols_hist = [r[0] for r in res_cols_hist]
+        if 'cartao_vermelho' not in cols_hist: s.execute(text("ALTER TABLE historico ADD COLUMN cartao_vermelho BOOLEAN DEFAULT FALSE"))
+
         # Faxina de Clones
         s.execute(text('''
             DELETE FROM regras WHERE id IN (
@@ -150,7 +158,7 @@ def criar_conta(user, pw):
     try:
         with conn.session as s:
             s.execute(text('INSERT INTO usuarios (username, password) VALUES (:u, :p)'), {"u": user_limpo, "p": hash_password(pw)})
-            s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_regras_padrao(user_limpo))
+            s.execute(text('INSERT INTO regras (usuario, descricao, valor, cartao_vermelho) VALUES (:u, :d, :v, :cv)'), obter_regras_padrao(user_limpo))
             s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(user_limpo))
             s.commit()
         return True
@@ -172,22 +180,22 @@ def verificar_login_atleta(user, nome_atleta, pin_digitado):
 
 # --- FUNÇÕES DE REGRAS E BÔNUS (DINÂMICAS) ---
 def get_regras():
-    df = conn.query('SELECT descricao, valor FROM regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=1)
-    res = list(df.itertuples(index=False, name=None))
+    df = conn.query('SELECT descricao, valor, cartao_vermelho FROM regras WHERE usuario = :u', params={"u": USER_LOGADO}, ttl=1)
+    res = [(row.descricao, {"valor": row.valor, "cartao_vermelho": bool(row.cartao_vermelho)}) for row in df.itertuples(index=False)]
     def sort_key(item):
         texto = item[0]
         match = re.search(r'[a-zA-ZÀ-ÿ0-9]', texto)
         return texto[match.start():].lower() if match else texto.lower()
     return dict(sorted(res, key=sort_key))
 
-def add_regra(descricao, valor):
+def add_regra(descricao, valor, cartao_vermelho=False):
     with conn.session as s:
-        s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), {"u": USER_LOGADO, "d": descricao, "v": valor})
+        s.execute(text('INSERT INTO regras (usuario, descricao, valor, cartao_vermelho) VALUES (:u, :d, :v, :cv)'), {"u": USER_LOGADO, "d": descricao, "v": valor, "cv": cartao_vermelho})
         s.commit()
 
-def update_regra(descricao_antiga, nova_descricao, novo_valor):
+def update_regra(descricao_antiga, nova_descricao, novo_valor, cartao_vermelho=False):
     with conn.session as s:
-        s.execute(text('UPDATE regras SET descricao = :nd, valor = :nv WHERE descricao = :da AND usuario = :u'), {"nd": nova_descricao, "nv": novo_valor, "da": descricao_antiga, "u": USER_LOGADO})
+        s.execute(text('UPDATE regras SET descricao = :nd, valor = :nv, cartao_vermelho = :cv WHERE descricao = :da AND usuario = :u'), {"nd": nova_descricao, "nv": novo_valor, "cv": cartao_vermelho, "da": descricao_antiga, "u": USER_LOGADO})
         s.commit()
 
 def delete_regra(descricao):
@@ -299,11 +307,11 @@ def delete_jogador(nome):
         s.execute(text('DELETE FROM notificacoes WHERE LOWER(nome) = LOWER(:n) AND usuario = :u'), {"n": nome, "u": USER_LOGADO})
         s.commit()
 
-def add_historico(jogador, infracao, valor, tipo='falta'):
+def add_historico(jogador, infracao, valor, tipo='falta', cartao_vermelho=False):
     agora = datetime.now().strftime("%d/%m/%Y %H:%M")
     with conn.session as s:
-        s.execute(text('INSERT INTO historico (usuario, nome, data, infracao, desconto, tipo) VALUES (:u, :n, :d, :i, :v, :t)'), 
-                  {"u": USER_LOGADO, "n": str(jogador), "d": agora, "i": str(infracao), "v": float(valor), "t": str(tipo)})
+        s.execute(text('INSERT INTO historico (usuario, nome, data, infracao, desconto, tipo, cartao_vermelho) VALUES (:u, :n, :d, :i, :v, :t, :cv)'), 
+                  {"u": USER_LOGADO, "n": str(jogador), "d": agora, "i": str(infracao), "v": float(valor), "t": str(tipo), "cv": bool(cartao_vermelho)})
         s.commit()
 
 def get_historico(jogador):
@@ -311,7 +319,7 @@ def get_historico(jogador):
 
 def get_historico_admin(jogador):
     # O Ponto Central de Carregamento para o Banco de Dados!
-    return conn.query('SELECT id, data, infracao, desconto, tipo FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=1)
+    return conn.query('SELECT id, data, infracao, desconto, tipo, cartao_vermelho FROM historico WHERE LOWER(nome) = LOWER(:n) AND usuario = :u ORDER BY id DESC', params={"n": jogador, "u": USER_LOGADO}, ttl=1)
 
 def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
     with conn.session as s:
@@ -330,6 +338,8 @@ def delete_specific_historico(jogador, id_item, valor_item, tipo_item):
             novas_faltas = max(0.0, faltas - float(valor_item))
         elif tipo_item == 'bonus':
             novo_saldo = saldo - float(valor_item)
+            # Reverte também o "perdão" que o bônus deu na barra de faltas (mecânica do perdão)
+            novas_faltas = faltas + float(valor_item)
         elif tipo_item == 'compra':
             nova_poupanca = poupanca + float(valor_item)
         elif tipo_item == 'deposito':
@@ -649,7 +659,7 @@ if TIPO_CONTA == 'pai':
             with conn.session as s:
                 s.execute(text("DELETE FROM regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
                 s.execute(text("DELETE FROM bonus_regras WHERE usuario = :u"), {"u": st.session_state.impersonate})
-                s.execute(text('INSERT INTO regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_regras_padrao(st.session_state.impersonate))
+                s.execute(text('INSERT INTO regras (usuario, descricao, valor, cartao_vermelho) VALUES (:u, :d, :v, :cv)'), obter_regras_padrao(st.session_state.impersonate))
                 s.execute(text('INSERT INTO bonus_regras (usuario, descricao, valor) VALUES (:u, :d, :v)'), obter_bonus_padrao(st.session_state.impersonate))
                 s.commit()
             st.success("Regras atualizadas com sucesso!")
@@ -733,7 +743,7 @@ if jogador_selecionado:
             
             if st.button("🎁 CLIQUE AQUI PARA VER SEU RESULTADO", type="primary", use_container_width=True):
                 teve_vermelho = False
-                if not df_historico_full.empty: teve_vermelho = any("Cartão Vermelho" in str(inf) for inf in df_historico_full['infracao'])
+                if not df_historico_full.empty: teve_vermelho = bool(df_historico_full['cartao_vermelho'].fillna(False).any())
 
                 nova_poupanca = poupanca + saldo_atual
 
@@ -924,7 +934,8 @@ if jogador_selecionado:
                     
                 st.markdown("#### 🔴 Faltas (O que evitar)")
                 if dict_regras_global:
-                    df_r = pd.DataFrame(list(dict_regras_global.items()), columns=["Infração", "Multa"])
+                    linhas_regras = [(desc, meta["valor"], "🟥" if meta["cartao_vermelho"] else "") for desc, meta in dict_regras_global.items()]
+                    df_r = pd.DataFrame(linhas_regras, columns=["Infração", "Multa", "Cartão"])
                     df_r["Multa"] = df_r["Multa"].apply(lambda x: f"- R$ {x:.2f}".replace('.', ','))
                     st.dataframe(df_r, use_container_width=True, hide_index=True)
                 else:
@@ -956,9 +967,10 @@ if jogador_selecionado:
                                 inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()))
                                 btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
                                 if btn_aplicar:
-                                    valor_falta = regras_dinamicas[inf_sel]
+                                    valor_falta = regras_dinamicas[inf_sel]["valor"]
+                                    eh_cartao_vermelho = regras_dinamicas[inf_sel]["cartao_vermelho"]
                                     update_status_saldo(jogador_selecionado, nivel_atual, base_atual, saldo_atual - valor_falta, faltas_atual + valor_falta, 0, estilo_avatar, titulos, teto_maximo, limite_faltas, poupanca)
-                                    add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta')
+                                    add_historico(jogador_selecionado, inf_sel, valor_falta, 'falta', cartao_vermelho=eh_cartao_vermelho)
                                     add_notificacao(jogador_selecionado, f"🚨 Infração marcada: '{inf_sel}' (- R$ {valor_falta:.2f}).")
                                     st.rerun()
                             else:
@@ -1050,10 +1062,11 @@ if jogador_selecionado:
                         c1, c2 = st.columns([3, 1])
                         with c1: d_regra = st.text_input("Descrição da Falta:")
                         with c2: v_regra = st.number_input("Valor R$:", min_value=0.50, step=0.50)
+                        cv_nova = st.checkbox("🟥 Gera Cartão Vermelho automático (rebaixamento garantido no fim da temporada)")
                         btn_salvar_regra = st.form_submit_button("Salvar Falta", use_container_width=True)
                         if btn_salvar_regra:
                             if d_regra and d_regra not in regras_dinamicas:
-                                add_regra(d_regra, v_regra)
+                                add_regra(d_regra, v_regra, cv_nova)
                                 st.rerun()
 
                     st.markdown("---")
@@ -1063,13 +1076,14 @@ if jogador_selecionado:
                         with st.form("form_editar_falta"):
                             c_ed1, c_ed2 = st.columns([3, 1])
                             with c_ed1: n_texto = st.text_input("Nova Descrição:", value=r_sel)
-                            with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]), min_value=0.50)
+                            with c_ed2: n_val = st.number_input("Novo Valor R$:", value=float(regras_dinamicas[r_sel]["valor"]), min_value=0.50)
+                            n_cv = st.checkbox("🟥 Gera Cartão Vermelho automático (rebaixamento garantido no fim da temporada)", value=regras_dinamicas[r_sel]["cartao_vermelho"])
                             c_btn1, c_btn2 = st.columns(2)
                             with c_btn1: btn_update_regra = st.form_submit_button("💾 Atualizar", use_container_width=True)
                             with c_btn2: btn_delete_regra = st.form_submit_button("🗑️ Excluir", use_container_width=True)
                             
                             if btn_update_regra:
-                                update_regra(r_sel, n_texto, n_val)
+                                update_regra(r_sel, n_texto, n_val, n_cv)
                                 st.rerun()
                             elif btn_delete_regra:
                                 delete_regra(r_sel)
