@@ -126,13 +126,8 @@ def init_db():
         if 'meta_valor' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN meta_valor REAL"))
         if 'poupanca' not in cols: s.execute(text("ALTER TABLE status ADD COLUMN poupanca REAL DEFAULT 0.0"))
 
-        res_cols_regras = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='regras'")).fetchall()
-        cols_regras = [r[0] for r in res_cols_regras]
-        if 'cartao_vermelho' not in cols_regras: s.execute(text("ALTER TABLE regras ADD COLUMN cartao_vermelho BOOLEAN DEFAULT FALSE"))
-
-        res_cols_hist = s.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='historico'")).fetchall()
-        cols_hist = [r[0] for r in res_cols_hist]
-        if 'cartao_vermelho' not in cols_hist: s.execute(text("ALTER TABLE historico ADD COLUMN cartao_vermelho BOOLEAN DEFAULT FALSE"))
+        s.execute(text("ALTER TABLE regras ADD COLUMN IF NOT EXISTS cartao_vermelho BOOLEAN DEFAULT FALSE"))
+        s.execute(text("ALTER TABLE historico ADD COLUMN IF NOT EXISTS cartao_vermelho BOOLEAN DEFAULT FALSE"))
 
         # Faxina de Clones
         s.execute(text('''
