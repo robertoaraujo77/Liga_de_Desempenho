@@ -27,7 +27,8 @@ st.markdown("""
 [data-testid="stToolbar"] { display: none !important; }
 #MainMenu { display: none !important; }
 footer { display: none !important; }
-button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; }
+button[data-baseweb="tab"] { white-space: nowrap !important; font-size: 14px !important; border-radius: 8px 8px 0 0 !important; }
+button[data-baseweb="tab"][aria-selected="true"] { background-color: rgba(40, 167, 69, 0.15) !important; border-bottom: 3px solid #28a745 !important; }
 .titulo-responsivo { font-size: 32px; font-weight: bold; margin-top: 10px; margin-bottom: 10px; }
 @media (max-width: 768px) {
 h1 { font-size: 24px !important; }
@@ -419,6 +420,9 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     score_val += int(bonus_acumulado * 3)
     score_val = min(99, max(40, score_val)) 
 
+    # Cor do anel do Score (verde = ótimo, laranja = mediano, vermelho = crítico)
+    cor_score = "#28a745" if score_val >= 80 else "#fd7e14" if score_val >= 60 else "#dc3545"
+
     # Cores dinâmicas baseadas na divisão
     bg_gradient = "linear-gradient(135deg, #2b32b2 0%, #1488cc 100%)"
     if "Ouro" in div_nome: bg_gradient = "linear-gradient(135deg, #e6c27a 0%, #d4af37 50%, #997328 100%)"
@@ -442,11 +446,11 @@ def render_carta_atleta(nome_jogador, estilo_avatar, div_nome, saldo, base, falt
     card_html = f'''
 <div style="background: {bg_gradient}; border-radius: 15px; padding: 15px; color: #1a1a1a; box-shadow: 0 6px 12px rgba(0,0,0,0.4); border: 2px solid #fff; display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden; margin-bottom: 20px;">
 <div style="text-align: center; min-width: 90px;">
-<div style="background: #1a1a1a; color: white; border-radius: 8px; padding: 2px 5px; position: absolute; top: 10px; left: 10px; z-index: 10;">
+<div style="background: #1a1a1a; color: white; border-radius: 8px; padding: 2px 5px; position: absolute; top: 10px; left: 10px; z-index: 10; border: 2px solid {cor_score};">
 <div style="font-size: 18px; font-weight: 900; line-height: 1;">{score_val}</div>
 <div style="font-size: 7px; font-weight: bold; text-transform: uppercase;">SCORE</div>
 </div>
-<img src="{img_src}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #1a1a1a; background-color: #e2e8f0; object-fit: cover;">
+<img src="{img_src}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid {cor_score}; background-color: #e2e8f0; object-fit: cover;">
 </div>
 <div style="flex-grow: 1;">
 <div style="font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">{nome_jogador}</div>
@@ -860,13 +864,31 @@ if jogador_selecionado:
             
             with aba1:
                 col1, col2 = st.columns(2)
-                col1.metric("⚽ Saldo da Temporada", f"R$ {max(0, saldo_atual):.2f}".replace('.', ','))
-                col2.metric("🔴 Multas Atuais", f"R$ {faltas_atual:.2f}".replace('.', ','), delta=f"- Limite: R$ {limite_faltas:.2f}".replace('.', ','), delta_color="inverse")
+                txt_saldo = f"R$ {max(0, saldo_atual):.2f}".replace('.', ',')
+                txt_multas = f"R$ {faltas_atual:.2f}".replace('.', ',')
+                txt_limite = f"R$ {limite_faltas:.2f}".replace('.', ',')
+                with col1:
+                    st.markdown(f"""<div style="background: rgba(40, 167, 69, 0.15); border: 1px solid rgba(40, 167, 69, 0.4); border-radius: 12px; padding: 12px 15px;">
+<div style="font-size: 12px; font-weight: 700; color: #28a745; margin-bottom: 4px;">⚽ Saldo da Temporada</div>
+<div style="font-size: 24px; font-weight: 900; color: #ffffff;">{txt_saldo}</div>
+</div>""", unsafe_allow_html=True)
+                with col2:
+                    st.markdown(f"""<div style="background: rgba(220, 53, 69, 0.15); border: 1px solid rgba(220, 53, 69, 0.4); border-radius: 12px; padding: 12px 15px;">
+<div style="font-size: 12px; font-weight: 700; color: #dc3545; margin-bottom: 4px;">🔴 Multas Atuais</div>
+<div style="font-size: 24px; font-weight: 900; color: #ffffff;">{txt_multas}</div>
+<div style="font-size: 11px; color: #a0aabf; margin-top: 2px;">Limite: {txt_limite}</div>
+</div>""", unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
 
                 porcentagem = min((faltas_atual / limite_faltas) * 100, 100) if limite_faltas > 0 else 100
                 cor_barra = "#28a745" if porcentagem < 50 else "#fd7e14" if porcentagem < 100 else "#dc3545"
+                texto_barra = f"R$ {faltas_atual:.2f} / R$ {limite_faltas:.2f} ({porcentagem:.0f}%)".replace('.', ',')
                 st.markdown(f"**Tolerância de Faltas:**")
-                st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 15px; margin-bottom: 10px; border: 1px solid #444;"><div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px;"></div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div style="background-color: #2b2b2b; border-radius: 15px; width: 100%; height: 22px; margin-bottom: 10px; border: 1px solid #444; position: relative;">
+<div style="background-color: {cor_barra}; width: {porcentagem}%; height: 100%; border-radius: 15px; transition: width 0.5s;"></div>
+<div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; color: white; font-size: 11px; font-weight: bold; line-height: 22px; text-shadow: 1px 1px 2px black;">{texto_barra}</div>
+</div>""", unsafe_allow_html=True)
 
                 st.markdown("**📊 Desempenho Diário (Ganhos vs Perdas)**")
                 if not df_historico_full.empty:
@@ -959,7 +981,9 @@ if jogador_selecionado:
                     with st.expander(f"🔴 Aplicar Falta em {jogador_selecionado}"):
                         with st.form("form_falta", clear_on_submit=True):
                             if regras_dinamicas:
-                                inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()))
+                                inf_sel = st.selectbox("Infração:", list(regras_dinamicas.keys()), format_func=lambda d: f"🟥 {d} (Cartão Vermelho!)" if regras_dinamicas[d]["cartao_vermelho"] else d)
+                                if any(m["cartao_vermelho"] for m in regras_dinamicas.values()):
+                                    st.caption("🟥 = infração marcada como Cartão Vermelho: causa rebaixamento automático no fim da temporada.")
                                 btn_aplicar = st.form_submit_button("Aplicar Falta", type="primary", use_container_width=True)
                                 if btn_aplicar:
                                     valor_falta = regras_dinamicas[inf_sel]["valor"]
