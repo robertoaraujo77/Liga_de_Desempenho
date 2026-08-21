@@ -150,6 +150,12 @@ def init_db():
             AND NOT EXISTS (SELECT 1 FROM metas m WHERE m.usuario = s.usuario AND m.jogador = s.nome AND m.descricao = s.meta_descricao)
         '''))
 
+        # Realinha o contador (sequence) de cada tabela com id SERIAL para o maior ID já existente.
+        # Evita "IntegrityError: duplicate key" quando a sequence fica dessincronizada dos dados
+        # (ex: depois de uma migração/restauração de banco que preservou IDs antigos).
+        for _tabela in ['usuarios', 'status', 'historico', 'trofeus', 'regras', 'notificacoes', 'bonus_regras', 'metas']:
+            s.execute(text(f"SELECT setval(pg_get_serial_sequence('{_tabela}', 'id'), COALESCE((SELECT MAX(id) FROM {_tabela}), 1))"))
+
         # Faxina de Clones
         s.execute(text('''
             DELETE FROM regras WHERE id IN (
