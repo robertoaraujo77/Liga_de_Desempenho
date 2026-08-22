@@ -151,7 +151,7 @@ Cofre tiver saldo suficiente — o valor é debitado e o item sai da lista.
 
 ### Modo GOD (Super Administrador)
 
-Login com o e-mail configurado na variável `SUPER_ADMIN` do código dá acesso a um painel
+Login com o e-mail configurado no **Secret `SUPER_ADMIN`** do Streamlit dá acesso a um painel
 especial na barra lateral, permitindo:
 - Acessar/gerenciar os dados de qualquer família cadastrada no sistema (impersonar).
 - Recarregar o conjunto de regras padrão para a família selecionada.
@@ -214,8 +214,11 @@ automaticamente como 20% da nova Base daquela divisão.
 O banco é criado e migrado automaticamente na primeira execução (função `init_db()`) — não é
 necessário rodar nenhum script de setup manual.
 
-> **Nota:** o acesso de Super Administrador (Modo GOD) está atrelado ao e-mail configurado na
-> variável `SUPER_ADMIN`, no topo do `app.py`.
+> **Nota:** o acesso de Super Administrador (Modo GOD) está atrelado ao e-mail configurado no
+> **Secret `SUPER_ADMIN`** (não fica hardcoded no código, já que o repositório é público). Para
+> rodar localmente, adicione a linha `SUPER_ADMIN = "seu-email@exemplo.com"` no seu
+> `.streamlit/secrets.toml`, junto com a string de conexão do banco. Em produção, configure o
+> mesmo em Streamlit Cloud > Manage app > Settings > Secrets.
 
 ---
 

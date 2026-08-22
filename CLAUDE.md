@@ -12,7 +12,17 @@ aplicam "Faltas" (multas) e "Bônus" no atleta. O desempenho do mês define a Di
 
 ## 2. Stack
 
-- **Linguagem/Framework:** Python 3 + Streamlit (arquivo único `app.py`, ~1450 linhas)
+- **Linguagem/Framework:** Python 3 + Streamlit
+- **Arquitetura de arquivos (refatorado — antes era um único `app.py` de ~1470 linhas):**
+  - `config.py` — constantes (PEDRAS, ESTILOS_AVATAR, CSS_APP, regras/bônus padrão) e
+    `SUPER_ADMIN` (lido de `st.secrets`, não hardcoded — ver seção 7)
+  - `logic.py` — funções puras (hash de senha, crop de imagem, cálculo de divisão/score/badges,
+    renderização do card do atleta, popups)
+  - `database.py` — toda a camada de banco: conexão (`conn`), `init_db()` e todas as funções de
+    CRUD. Usa uma função interna `_usuario_ativo()` (lê `st.session_state` diretamente) no lugar
+    do antigo global `USER_LOGADO` que existia quando tudo estava num arquivo só.
+  - `app.py` — só o fluxo de telas/UI (login, abas, formulários), importando dos 3 módulos acima
+    via `from config import *`, `from logic import *`, `from database import *`
 - **Hospedagem:** Streamlit Community Cloud → https://ligadedesempenho.streamlit.app/
 - **Banco:** PostgreSQL (Neon), via `st.connection("postgresql")` + SQLAlchemy `text()`
 - **Tema:** Dark mode forçado via `.streamlit/config.toml`
@@ -82,6 +92,12 @@ aplicam "Faltas" (multas) e "Bônus" no atleta. O desempenho do mês define a Di
    diferenciava cor por ganho/perda e agrupava por texto da data (ordem alfabética, não
    cronológica — quebraria em faltas de meses diferentes). Trocado por gráfico Altair
    com cor verde/vermelho por dia e eixo temporal de verdade.
+10. **Refatoração em múltiplos arquivos** — o `app.py` (que chegou a ~1470 linhas) foi separado
+    em `config.py` / `logic.py` / `database.py` / `app.py`, sem alterar nenhuma lógica de
+    negócio (só reorganização). Ver seção 2 para detalhes de cada módulo. Validado via
+    checagem cruzada de que toda função/constante movida existe em exatamente um módulo novo e
+    é usada corretamente, mais um "dry run" simulando a execução fora do Streamlit Cloud
+    (não há ambiente de teste real disponível para este projeto).
 
 ## 6. Bugs encontrados e corrigidos (histórico)
 
@@ -108,6 +124,14 @@ aplicam "Faltas" (multas) e "Bônus" no atleta. O desempenho do mês define a Di
   **não implementamos nada de API do WhatsApp** (decisão explícita do Roberto).
 - As colunas `meta_descricao`/`meta_valor` em `status` continuam no banco por segurança
   (não quebram nada), mas não são mais escritas nem lidas pela UI atual.
+- **IMPORTANTE — ação manual necessária no Streamlit Cloud:** `SUPER_ADMIN` foi movido de
+  hardcoded no código para `st.secrets` (o repositório é público, e antes disso o e-mail do
+  Modo GOD ficava visível pra qualquer um no GitHub). Isso significa que o Roberto **precisa**
+  adicionar `SUPER_ADMIN = "robertojr1990@gmail.com"` em Manage app > Settings > Secrets no
+  Streamlit Cloud (junto da string de conexão do banco) — sem isso, o Modo GOD fica
+  inacessível (o resto do app continua funcionando normalmente, é uma falha segura). Se uma
+  sessão futura do Claude notar o Modo GOD "sumido", checar isso primeiro antes de mexer em
+  qualquer lógica de login.
 
 ## 8. Convenções de código a manter
 
@@ -116,13 +140,19 @@ aplicam "Faltas" (multas) e "Bônus" no atleta. O desempenho do mês define a Di
   comparar/ordenar como texto puro (já causou um bug real, ver item de gráfico acima).
 - Migrações de schema em `init_db()` devem ser sempre `ADD COLUMN IF NOT EXISTS`
   (idempotentes), nunca `SELECT information_schema` + `IF NOT IN` (tem race condition).
-- `get_status()` retorna uma tupla posicional grande — ao adicionar campos novos,
-  **sempre no final da tupla** pra não quebrar os acessos por índice (`d_edit[N]`)
-  espalhados pelo código.
-- Ao renomear um atleta (`edit_jogador`), lembrar de propagar o nome novo em TODAS as
-  tabelas relacionadas: `historico`, `trofeus`, `notificacoes`, `metas`.
-- Sempre rodar `python3 -m py_compile app.py` depois de qualquer edição, antes de
-  commitar.
+- `get_status()` (em `database.py`) retorna uma tupla posicional grande — ao adicionar campos
+  novos, **sempre no final da tupla** pra não quebrar os acessos por índice (`d_edit[N]`)
+  espalhados pelo `app.py`.
+- Ao renomear um atleta (`edit_jogador`, em `database.py`), lembrar de propagar o nome novo em
+  TODAS as tabelas relacionadas: `historico`, `trofeus`, `notificacoes`, `metas`.
+- Sempre rodar `python3 -m py_compile app.py config.py logic.py database.py` depois de qualquer
+  edição, antes de commitar.
+- Novas funções de banco vão em `database.py`; use `_usuario_ativo()` (não um global) para saber
+  qual conta de pai está ativa — essa função já lida com o Modo GOD (impersonate) internamente.
+- Novas constantes/dados padrão vão em `config.py`. Novas funções puras (sem tocar banco) vão em
+  `logic.py`. O `app.py` deve conter só fluxo de tela — se uma função nova não depende de
+  `st.session_state` nem de Streamlit para além de renderizar algo simples, ela provavelmente
+  pertence a `logic.py`, não a `app.py`.
 
 ## 9. Deploy / Git
 
