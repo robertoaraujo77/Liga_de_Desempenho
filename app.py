@@ -144,6 +144,13 @@ if not st.session_state.autenticado:
 # ==========================================
 # ÁREA RESTRITA (SISTEMA BASE E MODO GOD)
 # ==========================================
+with st.sidebar:
+    st.warning("🔧 DEBUG TEMPORÁRIO — remover depois")
+    st.write("session usuario:", repr(st.session_state.usuario))
+    st.write("SUPER_ADMIN (secrets):", repr(SUPER_ADMIN))
+    st.write("tipo_conta:", repr(st.session_state.tipo_conta))
+    st.write("Bate usuario == SUPER_ADMIN?", st.session_state.usuario == SUPER_ADMIN)
+
 if st.session_state.usuario == SUPER_ADMIN and st.session_state.tipo_conta == 'pai':
     if 'impersonate' not in st.session_state:
         st.session_state.impersonate = st.session_state.usuario
